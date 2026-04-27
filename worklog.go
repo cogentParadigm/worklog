@@ -38,6 +38,47 @@ func findTaskByUUID(tasks []*Task, uuid string) *Task {
 	return nil
 }
 
+// isDescendantOf checks if 'potentialDescendant' is a descendant of 'ancestor' in the task tree.
+// This is used for cycle detection when moving tasks.
+func isDescendantOf(ancestor, potentialDescendant *Task) bool {
+	if ancestor == nil || potentialDescendant == nil {
+		return false
+	}
+	for _, child := range ancestor.children {
+		if child.uuid == potentialDescendant.uuid {
+			return true
+		}
+		if isDescendantOf(child, potentialDescendant) {
+			return true
+		}
+	}
+	return false
+}
+
+// removeFromParent removes a task from its current parent's children list
+// or from the root tasks list if it has no parent.
+// Note: This does not clear task.parent - the caller is responsible for setting the new parent.
+func (worklog *Worklog) removeFromParent(task *Task) {
+	if task.parent != nil {
+		oldParent := task.parent
+		for i, child := range oldParent.children {
+			if child.uuid == task.uuid {
+				oldParent.children = append(oldParent.children[:i], oldParent.children[i+1:]...)
+				break
+			}
+		}
+		task.parent = nil
+	} else {
+		// Task was a root task, remove from worklog.tasks
+		for i, t := range worklog.tasks {
+			if t.uuid == task.uuid {
+				worklog.tasks = append(worklog.tasks[:i], worklog.tasks[i+1:]...)
+				break
+			}
+		}
+	}
+}
+
 func (worklog *Worklog) UpdateTask(uuid string, name string, description string, parentUUID string) error {
 	task := worklog.FindTaskByUUID(uuid)
 	if task == nil {
@@ -51,30 +92,24 @@ func (worklog *Worklog) UpdateTask(uuid string, name string, description string,
 		task.description = description
 	}
 	if parentUUID != "" {
+		// Check for self-parenting (immediate cycle)
+		if parentUUID == uuid {
+			return fmt.Errorf("cannot set task as its own parent (cycle detected)")
+		}
+
 		// Find the new parent task
 		newParent := worklog.FindTaskByUUID(parentUUID)
 		if newParent == nil {
 			return fmt.Errorf("parent task with UUID '%s' not found", parentUUID)
 		}
 
-		// Remove task from old parent's children if it had a parent
-		if task.parent != nil {
-			oldParent := task.parent
-			for i, child := range oldParent.children {
-				if child.uuid == task.uuid {
-					oldParent.children = append(oldParent.children[:i], oldParent.children[i+1:]...)
-					break
-				}
-			}
-		} else {
-			// Task was a root task, remove from worklog.tasks
-			for i, t := range worklog.tasks {
-				if t.uuid == task.uuid {
-					worklog.tasks = append(worklog.tasks[:i], worklog.tasks[i+1:]...)
-					break
-				}
-			}
+		// Check for deeper cycle: newParent must not be a descendant of task
+		if isDescendantOf(task, newParent) {
+			return fmt.Errorf("cannot move task to a descendant (cycle detected)")
 		}
+
+		// Remove task from its current parent (root or existing parent)
+		worklog.removeFromParent(task)
 
 		// Add task to new parent's children
 		task.parent = newParent
