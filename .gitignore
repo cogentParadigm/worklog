@@ -42,3 +42,7 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.log
+
+# Generated test data
+testdata/example-output.ics
+testdata/actual.ics

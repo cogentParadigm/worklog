@@ -24,6 +24,12 @@ func main() {
 	createDescription := createCommand.String("description", "", "Additional or more detailed description")
 	createParent := createCommand.String("parent", "", "Unique ID of parent task")
 
+	updateCommand := flag.NewFlagSet("update", flag.ExitOnError)
+	updateUUID := updateCommand.String("uuid", "", "The UUID of the task to update (required)")
+	updateName := updateCommand.String("name", "", "New name for the task")
+	updateDescription := updateCommand.String("description", "", "New description for the task")
+	updateParent := updateCommand.String("parent", "", "New parent UUID for the task")
+
 	worklog := NewWorklog("testdata/example.ics")
 
 	switch os.Args[1] {
@@ -37,8 +43,20 @@ func main() {
 
 		}
 		worklog.Save()
+	case "update":
+		updateCommand.Parse(os.Args[2:])
+		if *updateUUID == "" {
+			fmt.Println("Error: -uuid flag is required for update command")
+			os.Exit(1)
+		}
+		err := worklog.UpdateTask(*updateUUID, *updateName, *updateDescription, *updateParent)
+		if err != nil {
+			fmt.Printf("Error: %v\n", err)
+			os.Exit(1)
+		}
+		worklog.Save()
 	default:
-		fmt.Printf("Unkown command '%v'\n", os.Args[1])
+		fmt.Printf("Unknown command '%v'\n", os.Args[1])
 	}
 }
 

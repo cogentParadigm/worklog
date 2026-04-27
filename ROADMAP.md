@@ -7,10 +7,9 @@ Foundation for basic task management.
 - [x] Read/write KTimeTracker-compatible `.ics` files
 - [x] List tasks (tree view, sorted alphabetically)
 - [x] Create tasks
-- [ ] Complete `update` command implementation
+- [x] Complete `update` command implementation
 - [ ] Complete `delete` command implementation
 - [ ] Fix parent flag handling in `create` command
-- [ ] Fix typo "Unkown" → "Unknown" in error messages
 
 ## Phase 2: Time Management
 
