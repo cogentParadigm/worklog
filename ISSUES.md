@@ -4,20 +4,6 @@ This document tracks known issues identified during code review, organized by pr
 
 ## High Priority
 
-### H1: Cycle Risk in Parent Reassignment
-**Location:** `worklog.go` - `UpdateTask()` function
-
-**Description:** `UpdateTask` does not guard against setting a task's parent to itself (`parentUUID == uuid`), nor does it prevent creating deeper cycles (e.g., making a task the child of its own descendant). Both would corrupt the tree and break `FindTaskByUUID` (infinite recursion) and serialization.
-
-**Impact:** Application crash or infinite loop when processing corrupted task trees.
-
-**Suggested Fix:** 
-- Add check for `parentUUID == uuid` (self-parenting)
-- Add cycle detection (ensure new parent is not a descendant of the task being moved)
-- Consider extracting tree removal logic into a helper with cycle detection built-in
-
----
-
 ### H2: Inconsistent Error Handling Styles
 **Location:** Across codebase (`worklog.go`, `main.go`, `errors.go`, `ical.go`)
 
@@ -118,21 +104,7 @@ This breaks KTimeTracker compatibility — if you open the output `.ics` in KTim
 
 ---
 
-### M3: No Tests for New Code
-**Location:** `worklog.go`
-
-**Description:** `FindTaskByUUID` and `UpdateTask` have zero unit tests. Only existing test is `TestItCanSaveIcsFiles` which tests round-tripping, not tree manipulation or CLI commands.
-
-**Impact:** Regression risk; no safety net for refactoring.
-
-**Suggested Fix:** 
-- Add unit tests for `FindTaskByUUID` (flat and nested tasks)
-- Add unit tests for `UpdateTask` (name, description, parent changes)
-- Add tests for edge cases: moving to root, moving to invalid parent, etc.
-
----
-
-### M4: `delete` Command Advertised but Unimplemented
+### M3: `delete` Command Advertised but Unimplemented
 **Location:** `main.go`
 
 **Description:** `delete` is listed in the usage banner and ROADMAP marks it incomplete, but there's no `case "delete"` in the switch statement.
@@ -160,22 +132,7 @@ This breaks KTimeTracker compatibility — if you open the output `.ics` in KTim
 
 ---
 
-### L2: Duplicate Tree Removal Logic
-**Location:** `worklog.go` - `UpdateTask()` function
-
-**Description:** The slice-splicing logic for removing a task appears twice:
-- Lines 63-66: removing from old parent's children
-- Lines 72-75: removing from root list
-
-**Impact:** Code duplication; harder to maintain and add cycle detection.
-
-**Suggested Fix:** 
-- Extract to `removeChild(parent, task)` helper
-- Or add `Task.RemoveFromParent()` method
-
----
-
-### L3: Brittle Path Munging in `Save()`
+### L2: Brittle Path Munging in `Save()`
 **Location:** `worklog.go` - `Save()` function
 
 **Description:** `strings.Replace(path, ".ics", "-output.ics", 1)` only replaces first occurrence. Paths like `backup.ics.old.ics` produce unexpected results.
@@ -188,7 +145,7 @@ This breaks KTimeTracker compatibility — if you open the output `.ics` in KTim
 
 ---
 
-### L4: Test Data File Churn (Resolved: Gitignore)
+### L3: Test Data File Churn (Resolved: Gitignore)
 **Location:** `testdata/example-output.ics`
 
 **Description:** ~~The diff shows regenerated UUIDs, reordered tasks, a missing `My New Task`, and shifted `RELATED-TO` links. If this is meant to be committed as reference output, the instability is concerning. If it's an artifact of running the CLI, it shouldn't be committed.~~
