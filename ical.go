@@ -48,6 +48,17 @@ func getTodos(cal *ics.Calendar) (r []*ics.VTodo) {
 	return r
 }
 
+func getEvents(cal *ics.Calendar) (r []*ics.VEvent) {
+	r = []*ics.VEvent{}
+	for i := range cal.Components {
+		switch event := cal.Components[i].(type) {
+		case *ics.VEvent:
+			r = append(r, event)
+		}
+	}
+	return r
+}
+
 func getProperty(todo *ics.VTodo, componentProperty ics.ComponentProperty) string {
 	property := todo.GetProperty(componentProperty)
 	if property != nil {

@@ -103,12 +103,58 @@ func getTasksForTodos(cal *ics.Calendar) []*Task {
 	return makeTasksForTodos(getTodos(cal))
 }
 
-func getCalendarForTasks(tasks []*Task) *ics.Calendar {
-	cal := ics.NewCalendar()
-	todos := makeTodosForTasks(tasks)
-	for _, todo := range todos {
-		cal.Components = append(cal.Components, todo)
+func getCalendarForTasks(tasks []*Task, original *ics.Calendar) *ics.Calendar {
+	if original == nil {
+		cal := ics.NewCalendar()
+		todos := makeTodosForTasks(tasks)
+		for _, todo := range todos {
+			cal.Components = append(cal.Components, todo)
+		}
+		return cal
 	}
+
+	// Build map of current tasks by UUID
+	allTasks := flattenTasks(tasks)
+	taskMap := make(map[string]*Task, len(allTasks))
+	for _, task := range allTasks {
+		taskMap[task.uuid] = task
+	}
+
+	cal := ics.NewCalendar()
+	// Preserve original calendar-level properties
+	cal.CalendarProperties = append([]ics.CalendarProperty(nil), original.CalendarProperties...)
+
+	// Iterate original components in order, replacing VTODOs and keeping everything else
+	for _, comp := range original.Components {
+		switch c := comp.(type) {
+		case *ics.VTodo:
+			uid := getProperty(c, ics.ComponentPropertyUniqueId)
+			if task, ok := taskMap[uid]; ok {
+				todo := makeTodoForTask(task)
+				cal.Components = append(cal.Components, &todo)
+				delete(taskMap, uid)
+			}
+			// If task no longer exists, drop the VTODO (deletion)
+		default:
+			cal.Components = append(cal.Components, comp)
+		}
+	}
+
+	// Append any brand-new tasks at the end, in position order
+	if len(taskMap) > 0 {
+		remaining := make([]*Task, 0, len(taskMap))
+		for _, task := range taskMap {
+			remaining = append(remaining, task)
+		}
+		sort.Slice(remaining, func(i, j int) bool {
+			return remaining[i].position < remaining[j].position
+		})
+		for _, task := range remaining {
+			todo := makeTodoForTask(task)
+			cal.Components = append(cal.Components, &todo)
+		}
+	}
+
 	return cal
 }
 

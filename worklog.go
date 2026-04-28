@@ -3,12 +3,15 @@ package main
 import (
 	"fmt"
 	"strings"
+
+	ics "github.com/arran4/golang-ical"
 )
 
 type Worklog struct {
 	path         string
 	tasks        []*Task
 	nextPosition int
+	calendar     *ics.Calendar // original calendar for round-trip preservation
 }
 
 func NewWorklog(path string) (*Worklog, error) {
@@ -18,7 +21,7 @@ func NewWorklog(path string) (*Worklog, error) {
 	}
 	todos := getTodos(cal)
 	tasks := makeTasksForTodos(todos)
-	return &Worklog{path: path, tasks: tasks, nextPosition: len(todos)}, nil
+	return &Worklog{path: path, tasks: tasks, nextPosition: len(todos), calendar: cal}, nil
 }
 
 func (worklog *Worklog) NewTask(name string) *Task {
@@ -127,8 +130,15 @@ func (worklog *Worklog) UpdateTask(uuid string, name string, description string,
 	return nil
 }
 
+func (worklog *Worklog) GetEvents() []*ics.VEvent {
+	if worklog.calendar == nil {
+		return nil
+	}
+	return getEvents(worklog.calendar)
+}
+
 func (worklog *Worklog) Save() error {
-	cal := getCalendarForTasks(worklog.tasks)
+	cal := getCalendarForTasks(worklog.tasks, worklog.calendar)
 	outPath := strings.Replace(worklog.path, ".ics", "-output.ics", 1)
 	if err := saveCalendar(outPath, cal); err != nil {
 		return fmt.Errorf("save worklog: %w", err)

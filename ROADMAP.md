@@ -60,3 +60,4 @@ Potential enhancements based on usage and feedback.
 - **Priority**: Phase 1 completion is required before Phase 3 begins
 - **Compatibility**: All changes must maintain KTimeTracker `.ics` compatibility
 - **Extensibility**: The integration system is designed to be generic, not Jira-specific
+- **Architecture**: `Worklog` now stores the original parsed `*ics.Calendar` and rebuilds it on save, preserving VEVENTs, calendar properties, and any unknown components during round-trips. The `GetEvents()` method exposes preserved VEVENTs for Phase 2/4 timer functionality.

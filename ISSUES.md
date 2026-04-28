@@ -4,19 +4,6 @@ This document tracks known issues identified during code review, organized by pr
 
 ## High Priority
 
-### H6: VEVENTs Are Lost on Save
-**Location:** `task.go` - `getCalendarForTasks()` function
-
-**Description:** `getCalendarForTasks` creates a new calendar and only adds VTODO components from `makeTodosForTasks`. Any VEVENT components in the original `.ics` file are silently dropped when saving. For example, `testdata/example.ics` contains 14 VEVENTs (time tracker entries) alongside 12 VTODOs, but the output file only contains VTODOs.
-
-**Impact:** Data loss; time tracking events are permanently removed on any save operation.
-
-**Suggested Fix:**
-- Preserve VEVENTs during the round-trip by storing them alongside tasks in `Worklog`
-- Or use a copy-on-write approach that modifies the original calendar's VTODOs in place while preserving all other components
-
----
-
 ## Medium Priority
 
 ### M1: `relatedTo` vs `parent` Inconsistency

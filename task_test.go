@@ -95,7 +95,7 @@ func TestRoundTripPreservesTodoOrder(t *testing.T) {
 
 	// Round-trip: calendar -> tasks -> calendar
 	tasks := getTasksForTodos(cal)
-	outCal := getCalendarForTasks(tasks)
+	outCal := getCalendarForTasks(tasks, nil)
 	outTodos := getTodos(outCal)
 
 	if len(outTodos) != 3 {
@@ -132,7 +132,7 @@ func TestPropertyPreservation(t *testing.T) {
 		t.Fatalf("Expected 4 preserved properties, got %d", len(task.properties))
 	}
 
-	outCal := getCalendarForTasks(tasks)
+	outCal := getCalendarForTasks(tasks, nil)
 	outTodos := getTodos(outCal)
 	if len(outTodos) != 1 {
 		t.Fatalf("Expected 1 todo, got %d", len(outTodos))
@@ -155,4 +155,139 @@ func TestPropertyPreservation(t *testing.T) {
 			t.Errorf("Expected property %s to have value %s, got %s", token, expectedVal, prop.Value)
 		}
 	}
+}
+
+func TestRoundTripPreservesVEvents(t *testing.T) {
+	cal := ics.NewCalendar()
+
+	todo1 := ics.VTodo{}
+	todo1.SetProperty(ics.ComponentPropertyUniqueId, "uuid-todo-1")
+	todo1.SetProperty(ics.ComponentPropertySummary, "Task 1")
+
+	event1 := ics.VEvent{}
+	event1.SetProperty(ics.ComponentPropertyUniqueId, "uuid-event-1")
+	event1.SetProperty(ics.ComponentPropertySummary, "Event 1")
+	event1.SetProperty("RELATED-TO", "uuid-todo-1")
+
+	todo2 := ics.VTodo{}
+	todo2.SetProperty(ics.ComponentPropertyUniqueId, "uuid-todo-2")
+	todo2.SetProperty(ics.ComponentPropertySummary, "Task 2")
+
+	event2 := ics.VEvent{}
+	event2.SetProperty(ics.ComponentPropertyUniqueId, "uuid-event-2")
+	event2.SetProperty(ics.ComponentPropertySummary, "Event 2")
+	event2.SetProperty("RELATED-TO", "uuid-todo-2")
+
+	// Interleave: todo, event, todo, event
+	cal.Components = append(cal.Components, &todo1, &event1, &todo2, &event2)
+
+	tasks := getTasksForTodos(cal)
+	outCal := getCalendarForTasks(tasks, cal)
+
+	if len(outCal.Components) != 4 {
+		t.Fatalf("Expected 4 components, got %d", len(outCal.Components))
+	}
+	if _, ok := outCal.Components[0].(*ics.VTodo); !ok {
+		t.Errorf("Expected component 0 to be VTODO")
+	}
+	if _, ok := outCal.Components[1].(*ics.VEvent); !ok {
+		t.Errorf("Expected component 1 to be VEVENT")
+	}
+	if _, ok := outCal.Components[2].(*ics.VTodo); !ok {
+		t.Errorf("Expected component 2 to be VTODO")
+	}
+	if _, ok := outCal.Components[3].(*ics.VEvent); !ok {
+		t.Errorf("Expected component 3 to be VEVENT")
+	}
+
+	outTodos := getTodos(outCal)
+	if len(outTodos) != 2 {
+		t.Fatalf("Expected 2 todos, got %d", len(outTodos))
+	}
+	if getProperty(outTodos[0], ics.ComponentPropertyUniqueId) != "uuid-todo-1" {
+		t.Errorf("Expected first todo UID uuid-todo-1, got %s", getProperty(outTodos[0], ics.ComponentPropertyUniqueId))
+	}
+
+	outEvents := getEvents(outCal)
+	if len(outEvents) != 2 {
+		t.Fatalf("Expected 2 events, got %d", len(outEvents))
+	}
+	if getEventProperty(outEvents[0], ics.ComponentPropertyUniqueId) != "uuid-event-1" {
+		t.Errorf("Expected first event UID uuid-event-1, got %s", getEventProperty(outEvents[0], ics.ComponentPropertyUniqueId))
+	}
+}
+
+func TestRoundTripPreservesCalendarProperties(t *testing.T) {
+	cal := ics.NewCalendar()
+	cal.SetProductId("-//K Desktop Environment//NONSGML libkcal 4.3//EN")
+	cal.CalendarProperties = append(cal.CalendarProperties, ics.CalendarProperty{
+		BaseProperty: ics.BaseProperty{
+			IANAToken: "X-KDE-ICAL-IMPLEMENTATION-VERSION",
+			Value:     "1.0",
+		},
+	})
+
+	todo := ics.VTodo{}
+	todo.SetProperty(ics.ComponentPropertyUniqueId, "uuid-todo-1")
+	todo.SetProperty(ics.ComponentPropertySummary, "Task 1")
+	cal.Components = append(cal.Components, &todo)
+
+	tasks := getTasksForTodos(cal)
+	outCal := getCalendarForTasks(tasks, cal)
+
+	var prodId, xKdeVersion string
+	for _, prop := range outCal.CalendarProperties {
+		switch prop.IANAToken {
+		case "PRODID":
+			prodId = prop.Value
+		case "X-KDE-ICAL-IMPLEMENTATION-VERSION":
+			xKdeVersion = prop.Value
+		}
+	}
+	if prodId != "-//K Desktop Environment//NONSGML libkcal 4.3//EN" {
+		t.Errorf("Expected PRODID preserved, got: %s", prodId)
+	}
+	if xKdeVersion != "1.0" {
+		t.Errorf("Expected X-KDE-ICAL-IMPLEMENTATION-VERSION preserved, got: %s", xKdeVersion)
+	}
+}
+
+func TestRoundTripAppendsNewTasks(t *testing.T) {
+	cal := ics.NewCalendar()
+
+	todo1 := ics.VTodo{}
+	todo1.SetProperty(ics.ComponentPropertyUniqueId, "uuid-todo-1")
+	todo1.SetProperty(ics.ComponentPropertySummary, "Task 1")
+	cal.Components = append(cal.Components, &todo1)
+
+	tasks := getTasksForTodos(cal)
+	// Add a brand-new task
+	newTask := NewTask("New Task")
+	newTask.position = 1
+	tasks = append(tasks, newTask)
+
+	outCal := getCalendarForTasks(tasks, cal)
+
+	if len(outCal.Components) != 2 {
+		t.Fatalf("Expected 2 components, got %d", len(outCal.Components))
+	}
+
+	outTodos := getTodos(outCal)
+	if len(outTodos) != 2 {
+		t.Fatalf("Expected 2 todos, got %d", len(outTodos))
+	}
+	if getProperty(outTodos[0], ics.ComponentPropertyUniqueId) != "uuid-todo-1" {
+		t.Errorf("Expected first todo to be original, got %s", getProperty(outTodos[0], ics.ComponentPropertyUniqueId))
+	}
+	if getProperty(outTodos[1], ics.ComponentPropertyUniqueId) != newTask.uuid {
+		t.Errorf("Expected second todo to be new task, got %s", getProperty(outTodos[1], ics.ComponentPropertyUniqueId))
+	}
+}
+
+func getEventProperty(event *ics.VEvent, prop ics.ComponentProperty) string {
+	property := event.GetProperty(prop)
+	if property != nil {
+		return property.Value
+	}
+	return ""
 }
