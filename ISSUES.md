@@ -4,22 +4,6 @@ This document tracks known issues identified during code review, organized by pr
 
 ## High Priority
 
-### H3: `create` Command Parent Flag is No-Op
-**Location:** `main.go` - `create` command case
-
-**Description:** The `-parent` flag is parsed for the `create` command but the block is empty:
-```go
-if *createParent != "" {
-    // Nothing happens here
-}
-```
-
-**Impact:** Users can pass `-parent` but it has no effect, leading to confusion.
-
-**Suggested Fix:** Implement parent assignment logic (similar to `UpdateTask` parent handling) or remove the flag until implemented.
-
----
-
 ### H4: KTimeTracker Metadata Stripping (KTimeTracker Compatibility Broken)
 **Location:** `task.go` - `makeTodoForTask()` and `makeTaskForTodo()` functions
 

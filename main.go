@@ -50,7 +50,13 @@ func run(args []string) error {
 		task := worklog.NewTask(*createName)
 		task.description = *createDescription
 		if *createParent != "" {
-
+			parentTask := worklog.FindTaskByUUID(*createParent)
+			if parentTask == nil {
+				return fmt.Errorf("parent task with UUID '%s' not found", *createParent)
+			}
+			task.parent = parentTask
+			parentTask.children = append(parentTask.children, task)
+			task.relatedTo = *createParent
 		}
 		if err := worklog.Save(); err != nil {
 			return err
