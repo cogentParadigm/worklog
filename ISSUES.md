@@ -4,23 +4,6 @@ This document tracks known issues identified during code review, organized by pr
 
 ## High Priority
 
-### H2: Inconsistent Error Handling Styles
-**Location:** Across codebase (`worklog.go`, `main.go`, `errors.go`, `ical.go`)
-
-**Description:** Mixed error handling patterns:
-- `UpdateTask` returns errors to caller (good)
-- `NewTask`, `Save`, calendar I/O use `handleError()` which prints but doesn't exit
-- `update` branch in `main.go` prints "Error: ..." and exits with `1`
-- `default` branch prints "Unknown command ..." but doesn't prefix with "Error:"
-
-**Impact:** Unpredictable failure modes, some errors may be silently swallowed or handled inconsistently.
-
-**Suggested Fix:** 
-- Create unified error-print-and-exit helper
-- Ensure all CLI errors follow consistent format and exit codes
-
----
-
 ### H3: `create` Command Parent Flag is No-Op
 **Location:** `main.go` - `create` command case
 
@@ -144,18 +127,3 @@ This breaks KTimeTracker compatibility — if you open the output `.ics` in KTim
 - Or use `filepath` package properly: `strings.TrimSuffix(path, filepath.Ext(path)) + "-output.ics"`
 
 ---
-
-### L3: Test Data File Churn (Resolved: Gitignore)
-**Location:** `testdata/example-output.ics`
-
-**Description:** ~~The diff shows regenerated UUIDs, reordered tasks, a missing `My New Task`, and shifted `RELATED-TO` links. If this is meant to be committed as reference output, the instability is concerning. If it's an artifact of running the CLI, it shouldn't be committed.~~
-
-**Resolution:** This file is a generated artifact and should not be tracked. Added to `.gitignore` and removed from git.
-
-**Underlying causes (separate issues tracked as H4 and H5):**
-- Metadata stripping (H4)
-- Task ordering instability (H5)
-
-**Action Taken:** 
-- Added `testdata/example-output.ics` to `.gitignore`
-- Removed from git tracking with `git rm --cached`
