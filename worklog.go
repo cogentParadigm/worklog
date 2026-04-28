@@ -6,8 +6,9 @@ import (
 )
 
 type Worklog struct {
-	path  string
-	tasks []*Task
+	path         string
+	tasks        []*Task
+	nextPosition int
 }
 
 func NewWorklog(path string) (*Worklog, error) {
@@ -15,12 +16,15 @@ func NewWorklog(path string) (*Worklog, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open worklog: %w", err)
 	}
-	tasks := getTasksForTodos(cal)
-	return &Worklog{path, tasks}, nil
+	todos := getTodos(cal)
+	tasks := makeTasksForTodos(todos)
+	return &Worklog{path: path, tasks: tasks, nextPosition: len(todos)}, nil
 }
 
 func (worklog *Worklog) NewTask(name string) *Task {
 	task := NewTask(name)
+	task.position = worklog.nextPosition
+	worklog.nextPosition++
 	worklog.tasks = append(worklog.tasks, task)
 	return task
 }

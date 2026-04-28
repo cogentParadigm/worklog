@@ -4,17 +4,16 @@ This document tracks known issues identified during code review, organized by pr
 
 ## High Priority
 
-### H5: Task Ordering Instability (Non-Deterministic Output)
-**Location:** `task.go` - `makeTasksForTodos()` function
+### H6: VEVENTs Are Lost on Save
+**Location:** `task.go` - `getCalendarForTasks()` function
 
-**Description:** The function iterates over a Go map (`uidMap`) in randomized order, causing tasks to appear in non-deterministic order in the output. Combined with `RELATED-TO` links changing during iteration, this produces different file layouts on every run even when nothing meaningful changes.
+**Description:** `getCalendarForTasks` creates a new calendar and only adds VTODO components from `makeTodosForTasks`. Any VEVENT components in the original `.ics` file are silently dropped when saving. For example, `testdata/example.ics` contains 14 VEVENTs (time tracker entries) alongside 12 VTODOs, but the output file only contains VTODOs.
 
-**Impact:** Noisy diffs; makes it impossible to use file comparison for regression testing; confusing for users expecting stable output.
+**Impact:** Data loss; time tracking events are permanently removed on any save operation.
 
-**Suggested Fix:** 
-- Sort tasks by UID (or other stable key) before iterating
-- Or maintain original file order by tracking sequence during parse
-- Consider stable tree serialization (e.g., depth-first pre-order with stable child ordering)
+**Suggested Fix:**
+- Preserve VEVENTs during the round-trip by storing them alongside tasks in `Worklog`
+- Or use a copy-on-write approach that modifies the original calendar's VTODOs in place while preserving all other components
 
 ---
 

@@ -1,6 +1,8 @@
 package main
 
 import (
+	"sort"
+
 	ics "github.com/arran4/golang-ical"
 	"github.com/google/uuid"
 )
@@ -13,6 +15,7 @@ type Task struct {
 	parent      *Task
 	children    []*Task
 	properties  []ics.IANAProperty
+	position    int
 }
 
 // ---------------------------------------------------------
@@ -54,12 +57,15 @@ func makeTodoForTask(task *Task) ics.VTodo {
 
 func makeTasksForTodos(todos []*ics.VTodo) []*Task {
 	uidMap := make(map[string]*Task)
+	taskOrder := make([]*Task, 0, len(todos))
 	roots := []*Task{}
-	for _, todo := range todos {
+	for i, todo := range todos {
 		task := makeTaskForTodo(todo)
+		task.position = i
 		uidMap[task.uuid] = &task
+		taskOrder = append(taskOrder, &task)
 	}
-	for _, task := range uidMap {
+	for _, task := range taskOrder {
 		if task.relatedTo == "" {
 			roots = append(roots, task)
 		} else {
@@ -71,14 +77,24 @@ func makeTasksForTodos(todos []*ics.VTodo) []*Task {
 	return roots
 }
 
-func makeTodosForTasks(tasks []*Task) (todos []*ics.VTodo) {
+func flattenTasks(tasks []*Task) []*Task {
+	var result []*Task
 	for _, task := range tasks {
+		result = append(result, task)
+		result = append(result, flattenTasks(task.children)...)
+	}
+	return result
+}
+
+func makeTodosForTasks(tasks []*Task) []*ics.VTodo {
+	allTasks := flattenTasks(tasks)
+	sort.Slice(allTasks, func(i, j int) bool {
+		return allTasks[i].position < allTasks[j].position
+	})
+	todos := make([]*ics.VTodo, len(allTasks))
+	for i, task := range allTasks {
 		todo := makeTodoForTask(task)
-		todos = append(todos, &todo)
-		if len(task.children) > 0 {
-			children := makeTodosForTasks(task.children)
-			todos = append(todos, children...)
-		}
+		todos[i] = &todo
 	}
 	return todos
 }
