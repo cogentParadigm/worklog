@@ -8,7 +8,14 @@ import (
 )
 
 func main() {
-	if len(os.Args) < 2 {
+	if err := run(os.Args[1:]); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+}
+
+func run(args []string) error {
+	if len(args) < 1 {
 		fmt.Println("Usage: worklog <command> [<args>]")
 		fmt.Println("")
 		fmt.Println("Available commands:")
@@ -16,7 +23,7 @@ func main() {
 		fmt.Println("  create  Create a new task")
 		fmt.Println("  update  Update a task")
 		fmt.Println("  delete  Delete a task")
-		os.Exit(1)
+		return fmt.Errorf("no command provided")
 	}
 
 	createCommand := flag.NewFlagSet("create", flag.ExitOnError)
@@ -30,34 +37,39 @@ func main() {
 	updateDescription := updateCommand.String("description", "", "New description for the task")
 	updateParent := updateCommand.String("parent", "", "New parent UUID for the task")
 
-	worklog := NewWorklog("testdata/example.ics")
+	worklog, err := NewWorklog("testdata/example.ics")
+	if err != nil {
+		return err
+	}
 
-	switch os.Args[1] {
+	switch args[0] {
 	case "list":
 		printTasks(worklog.tasks, "")
 	case "create":
-		createCommand.Parse(os.Args[2:])
+		createCommand.Parse(args[1:])
 		task := worklog.NewTask(*createName)
 		task.description = *createDescription
 		if *createParent != "" {
 
 		}
-		worklog.Save()
+		if err := worklog.Save(); err != nil {
+			return err
+		}
 	case "update":
-		updateCommand.Parse(os.Args[2:])
+		updateCommand.Parse(args[1:])
 		if *updateUUID == "" {
-			fmt.Println("Error: -uuid flag is required for update command")
-			os.Exit(1)
+			return fmt.Errorf("-uuid flag is required for update command")
 		}
-		err := worklog.UpdateTask(*updateUUID, *updateName, *updateDescription, *updateParent)
-		if err != nil {
-			fmt.Printf("Error: %v\n", err)
-			os.Exit(1)
+		if err := worklog.UpdateTask(*updateUUID, *updateName, *updateDescription, *updateParent); err != nil {
+			return err
 		}
-		worklog.Save()
+		if err := worklog.Save(); err != nil {
+			return err
+		}
 	default:
-		fmt.Printf("Unknown command '%v'\n", os.Args[1])
+		return fmt.Errorf("unknown command '%s'", args[0])
 	}
+	return nil
 }
 
 func printTasks(tasks []*Task, prefix string) {

@@ -10,10 +10,13 @@ type Worklog struct {
 	tasks []*Task
 }
 
-func NewWorklog(path string) *Worklog {
-	cal := openCalendar(path)
+func NewWorklog(path string) (*Worklog, error) {
+	cal, err := openCalendar(path)
+	if err != nil {
+		return nil, fmt.Errorf("open worklog: %w", err)
+	}
 	tasks := getTasksForTodos(cal)
-	return &Worklog{path, tasks}
+	return &Worklog{path, tasks}, nil
 }
 
 func (worklog *Worklog) NewTask(name string) *Task {
@@ -120,7 +123,11 @@ func (worklog *Worklog) UpdateTask(uuid string, name string, description string,
 	return nil
 }
 
-func (worklog *Worklog) Save() {
+func (worklog *Worklog) Save() error {
 	cal := getCalendarForTasks(worklog.tasks)
-	saveCalendar(strings.Replace(worklog.path, ".ics", "-output.ics", 1), cal)
+	outPath := strings.Replace(worklog.path, ".ics", "-output.ics", 1)
+	if err := saveCalendar(outPath, cal); err != nil {
+		return fmt.Errorf("save worklog: %w", err)
+	}
+	return nil
 }

@@ -9,7 +9,10 @@ import (
 )
 
 func TestItCanOpenIcsFiles(t *testing.T) {
-	cal := openCalendar("testdata/example.ics")
+	cal, err := openCalendar("testdata/example.ics")
+	if err != nil {
+		t.Fatalf("Unexpected error opening calendar: %v", err)
+	}
 	expected := 32
 	actual := len(cal.Components)
 	if actual != expected {
@@ -20,7 +23,9 @@ func TestItCanOpenIcsFiles(t *testing.T) {
 func TestItCanSaveIcsFiles(t *testing.T) {
 	cal := createTestIcsCalendar()
 
-	saveCalendar("testdata/actual.ics", cal)
+	if err := saveCalendar("testdata/actual.ics", cal); err != nil {
+		t.Fatalf("Unexpected error saving calendar: %v", err)
+	}
 
 	actualBytes, _ := os.ReadFile("testdata/actual.ics")
 	expectedBytes, _ := os.ReadFile("testdata/expected.ics")

@@ -12,17 +12,24 @@ import (
 // open and save functions to read and write from ics file
 // ---------------------------------------------------------
 
-func openCalendar(path string) *ics.Calendar {
+func openCalendar(path string) (*ics.Calendar, error) {
 	icsBytes, err := os.ReadFile(path)
-	handleError(err)
+	if err != nil {
+		return nil, fmt.Errorf("read ics file: %w", err)
+	}
 	cal, err := ics.ParseCalendar(strings.NewReader(string(icsBytes)))
-	handleError(err)
-	return cal
+	if err != nil {
+		return nil, fmt.Errorf("parse ics file: %w", err)
+	}
+	return cal, nil
 }
 
-func saveCalendar(path string, cal *ics.Calendar) {
+func saveCalendar(path string, cal *ics.Calendar) error {
 	err := os.WriteFile(path, []byte(cal.Serialize()), 0644)
-	handleError(err)
+	if err != nil {
+		return fmt.Errorf("write ics file: %w", err)
+	}
+	return nil
 }
 
 // ---------------------------------------------------------
