@@ -4,27 +4,6 @@ This document tracks known issues identified during code review, organized by pr
 
 ## High Priority
 
-### H4: KTimeTracker Metadata Stripping (KTimeTracker Compatibility Broken)
-**Location:** `task.go` - `makeTodoForTask()` and `makeTaskForTodo()` functions
-
-**Description:** The serialization round-trip strips KTimeTracker-specific metadata from the source `.ics` file:
-- `CREATED`, `DTSTAMP`, `LAST-MODIFIED`
-- `PERCENT-COMPLETE`
-- `X-KDE-ktimetracker-totalSessionTime`
-- `X-KDE-ktimetracker-totalTaskTime`
-
-This breaks KTimeTracker compatibility — if you open the output `.ics` in KTimeTracker, you'd lose creation dates, completion status, and tracked time.
-
-**Impact:** Loss of historical time tracking data; incompatible with KTimeTracker workflows.
-
-**Suggested Fix:** 
-- Extend `Task` struct to include metadata fields
-- Preserve all properties in `makeTaskForTodo()`
-- Emit all properties in `makeTodoForTask()`
-- Consider using a `map[string]string` for arbitrary property preservation
-
----
-
 ### H5: Task Ordering Instability (Non-Deterministic Output)
 **Location:** `task.go` - `makeTasksForTodos()` function
 

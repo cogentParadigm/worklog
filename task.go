@@ -12,6 +12,7 @@ type Task struct {
 	relatedTo   string
 	parent      *Task
 	children    []*Task
+	properties  []ics.IANAProperty
 }
 
 // ---------------------------------------------------------
@@ -19,14 +20,20 @@ type Task struct {
 // ---------------------------------------------------------
 
 func makeTaskForTodo(todo *ics.VTodo) Task {
-	return Task{
-		getProperty(todo, ics.ComponentPropertyUniqueId),
-		getProperty(todo, ics.ComponentPropertySummary),
-		getProperty(todo, ics.ComponentPropertyDescription),
-		getProperty(todo, "RELATED-TO"),
-		nil,
-		nil,
+	task := Task{
+		uuid:        getProperty(todo, ics.ComponentPropertyUniqueId),
+		name:        getProperty(todo, ics.ComponentPropertySummary),
+		description: getProperty(todo, ics.ComponentPropertyDescription),
+		relatedTo:   getProperty(todo, "RELATED-TO"),
 	}
+	for _, prop := range todo.Properties {
+		switch prop.IANAToken {
+		case string(ics.ComponentPropertyUniqueId), string(ics.ComponentPropertySummary), string(ics.ComponentPropertyDescription), "RELATED-TO":
+			continue
+		}
+		task.properties = append(task.properties, prop)
+	}
+	return task
 }
 
 func makeTodoForTask(task *Task) ics.VTodo {
@@ -37,6 +44,7 @@ func makeTodoForTask(task *Task) ics.VTodo {
 	if task.parent != nil {
 		todo.SetProperty("RELATED-TO", task.parent.uuid)
 	}
+	todo.Properties = append(todo.Properties, task.properties...)
 	return todo
 }
 
@@ -90,11 +98,7 @@ func getCalendarForTasks(tasks []*Task) *ics.Calendar {
 
 func NewTask(name string) *Task {
 	return &Task{
-		uuid.New().String(),
-		name,
-		"",
-		"",
-		nil,
-		nil,
+		uuid: uuid.New().String(),
+		name: name,
 	}
 }
