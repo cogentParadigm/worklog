@@ -1,0 +1,25 @@
+policies:
+  - type: commit
+    spec:
+      imperative: true
+      header:
+        length: 89
+        imperative: true
+        invalidLastCharacters: .
+      body:
+        required: false
+      spelcheck:
+        locale: US
+      conventional:
+        types:
+          - "chore"
+          - "ci"
+          - "docs"
+          - "feat"
+          - "fix"
+          - "perf"
+          - "refactor"
+          - "style"
+          - "test"
+        scopes:
+          - "release"

@@ -1,0 +1,9 @@
+repos:
+  - repo: local
+    hooks:
+      - id: conform
+        name: conform
+        entry: /home/ali/go/bin/conform enforce --commit-msg-file
+        language: system
+        stages: [commit-msg]
+        pass_filenames: true
