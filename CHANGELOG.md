@@ -1,3 +1,11 @@
+## [0.1.1](https://github.com/cogentParadigm/worklog/compare/v0.1.0...v0.1.1) (2026-04-29)
+
+
+### Bug Fixes
+
+* restore git credentials for semantic-release push ([51d59a5](https://github.com/cogentParadigm/worklog/commit/51d59a57639f47b9ed93b5c09bcf3dd6256cbcae))
+* use UTC in test to avoid timezone drift in CI ([840fe28](https://github.com/cogentParadigm/worklog/commit/840fe2817d981ef7e4e73a941a0f6e9435e42ba3))
+
 # Changelog
 
 All notable changes to this project will be documented in this file.
