@@ -48,7 +48,7 @@ func createTestIcsCalendar() *ics.Calendar {
 	todo2.SetProperty(ics.ComponentPropertyDescription, "This is the second task")
 	cal.Components = append(cal.Components, &todo1, &todo2)
 	event1 := cal.AddEvent("0d93a2f2-7a60-413e-ab38-bebeb21c1cb9")
-	startTime := time.Date(2023, time.August, 27, 11, 0, 0, 0, time.Local)
+	startTime := time.Date(2023, time.August, 27, 17, 0, 0, 0, time.UTC)
 	duration, _ := time.ParseDuration("30m")
 	endTime := startTime.Add(duration)
 	event1.SetStartAt(startTime)
