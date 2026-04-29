@@ -4,20 +4,6 @@ This document tracks known issues identified during code review.
 
 ## Issues
 
-### `relatedTo` vs `parent` Inconsistency `[Medium]`
-**Location:** `worklog.go`, `task.go`
-
-**Description:** `UpdateTask` sets both `task.parent = newParent` and `task.relatedTo = parentUUID`. However, `makeTodoForTask` only looks at `task.parent` when emitting `RELATED-TO`, making the `relatedTo` write potentially dead code. During load, `makeTasksForTodos` treats `relatedTo` as the source of truth.
-
-**Impact:** Potential confusion about which field is authoritative; risk of data inconsistency if `parent` and `relatedTo` diverge.
-
-**Suggested Fix:**
-- Clarify the relationship between these fields
-- Consider removing `relatedTo` field and deriving it from `parent` during serialization
-- Or ensure both fields stay synchronized
-
----
-
 ### Cannot Clear/Unset Fields `[Medium]`
 **Location:** `worklog.go` - `UpdateTask()` function
 

@@ -16,7 +16,7 @@ This prevents data loss for KTimeTracker timer-session VEVENTs and any future un
 
 ### Task Tree Model
 
-- `Task` has `parent`, `children`, `uuid`, `name`, `description`, `relatedTo`, `position`, and `properties`.
+- `Task` has `parent`, `children`, `uuid`, `name`, `description`, `position`, and `properties`.
 - `position` is set during load to the original VTODO's index and used to maintain deterministic ordering.
 - Parent/child relationships are built from `RELATED-TO` during load and emitted back during save.
 

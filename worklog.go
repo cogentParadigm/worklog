@@ -124,7 +124,6 @@ func (worklog *Worklog) UpdateTask(uuid string, name string, description string,
 		// Add task to new parent's children
 		task.parent = newParent
 		newParent.children = append(newParent.children, task)
-		task.relatedTo = parentUUID
 	}
 
 	return nil

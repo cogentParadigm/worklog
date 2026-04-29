@@ -56,7 +56,6 @@ func run(args []string) error {
 			}
 			task.parent = parentTask
 			parentTask.children = append(parentTask.children, task)
-			task.relatedTo = *createParent
 		}
 		if err := worklog.Save(); err != nil {
 			return err

@@ -104,10 +104,7 @@ func TestUpdateTaskMoveToNewParent(t *testing.T) {
 		t.Errorf("Expected parent1 to have no children")
 	}
 
-	// Verify relatedTo is updated
-	if child.relatedTo != parent2.uuid {
-		t.Errorf("Expected child's relatedTo to be parent2's UUID")
-	}
+
 }
 
 func TestUpdateTaskMoveToRoot(t *testing.T) {

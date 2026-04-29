@@ -11,7 +11,6 @@ type Task struct {
 	uuid        string
 	name        string
 	description string
-	relatedTo   string
 	parent      *Task
 	children    []*Task
 	properties  []ics.IANAProperty
@@ -22,13 +21,13 @@ type Task struct {
 // convert between Task and ics.VTodo
 // ---------------------------------------------------------
 
-func makeTaskForTodo(todo *ics.VTodo) Task {
+func makeTaskForTodo(todo *ics.VTodo) (Task, string) {
 	task := Task{
 		uuid:        getProperty(todo, ics.ComponentPropertyUniqueId),
 		name:        getProperty(todo, ics.ComponentPropertySummary),
 		description: getProperty(todo, ics.ComponentPropertyDescription),
-		relatedTo:   getProperty(todo, "RELATED-TO"),
 	}
+	relatedTo := getProperty(todo, "RELATED-TO")
 	for _, prop := range todo.Properties {
 		switch prop.IANAToken {
 		case string(ics.ComponentPropertyUniqueId), string(ics.ComponentPropertySummary), string(ics.ComponentPropertyDescription), "RELATED-TO":
@@ -36,7 +35,7 @@ func makeTaskForTodo(todo *ics.VTodo) Task {
 		}
 		task.properties = append(task.properties, prop)
 	}
-	return task
+	return task, relatedTo
 }
 
 func makeTodoForTask(task *Task) ics.VTodo {
@@ -57,19 +56,21 @@ func makeTodoForTask(task *Task) ics.VTodo {
 
 func makeTasksForTodos(todos []*ics.VTodo) []*Task {
 	uidMap := make(map[string]*Task)
+	relatedToMap := make(map[string]string)
 	taskOrder := make([]*Task, 0, len(todos))
 	roots := []*Task{}
 	for i, todo := range todos {
-		task := makeTaskForTodo(todo)
+		task, relatedTo := makeTaskForTodo(todo)
 		task.position = i
 		uidMap[task.uuid] = &task
+		relatedToMap[task.uuid] = relatedTo
 		taskOrder = append(taskOrder, &task)
 	}
 	for _, task := range taskOrder {
-		if task.relatedTo == "" {
+		if parentUUID := relatedToMap[task.uuid]; parentUUID == "" {
 			roots = append(roots, task)
 		} else {
-			parent := uidMap[task.relatedTo]
+			parent := uidMap[parentUUID]
 			task.parent = parent
 			parent.children = append(parent.children, task)
 		}
