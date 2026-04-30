@@ -10,6 +10,7 @@ import (
 type Worklog struct {
 	path         string
 	tasks        []*Task
+	events       []*Event
 	nextPosition int
 	calendar     *ics.Calendar // original calendar for round-trip preservation
 }
@@ -21,7 +22,9 @@ func NewWorklog(path string) (*Worklog, error) {
 	}
 	todos := getTodos(cal)
 	tasks := makeTasksForTodos(todos)
-	return &Worklog{path: path, tasks: tasks, nextPosition: len(todos), calendar: cal}, nil
+	vevents := getEvents(cal)
+	events := makeEventsForVEvents(vevents)
+	return &Worklog{path: path, tasks: tasks, events: events, nextPosition: len(todos), calendar: cal}, nil
 }
 
 func (worklog *Worklog) NewTask(name string) *Task {
@@ -153,18 +156,29 @@ func (worklog *Worklog) DeleteTask(uuid string) (int, error) {
 
 	count := countSubtasks(task)
 	worklog.removeFromParent(task)
+
+	// Collect all deleted task UUIDs
+	deletedUUIDs := make(map[string]bool)
+	collectTaskUUIDs(task, deletedUUIDs)
+
+	// Filter out events linked to deleted tasks
+	var remaining []*Event
+	for _, event := range worklog.events {
+		if !deletedUUIDs[event.relatedTo] {
+			remaining = append(remaining, event)
+		}
+	}
+	worklog.events = remaining
+
 	return count, nil
 }
 
-func (worklog *Worklog) GetEvents() []*ics.VEvent {
-	if worklog.calendar == nil {
-		return nil
-	}
-	return getEvents(worklog.calendar)
+func (worklog *Worklog) GetEvents() []*Event {
+	return worklog.events
 }
 
 func (worklog *Worklog) Save() error {
-	cal := getCalendarForTasks(worklog.tasks, worklog.calendar)
+	cal := getCalendarForTasks(worklog.tasks, worklog.events, worklog.calendar)
 	outPath := strings.Replace(worklog.path, ".ics", "-output.ics", 1)
 	if err := saveCalendar(outPath, cal); err != nil {
 		return fmt.Errorf("save worklog: %w", err)

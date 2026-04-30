@@ -67,6 +67,14 @@ func getProperty(todo *ics.VTodo, componentProperty ics.ComponentProperty) strin
 	return ""
 }
 
+func getEventProperty(event *ics.VEvent, prop ics.ComponentProperty) string {
+	property := event.GetProperty(prop)
+	if property != nil {
+		return property.Value
+	}
+	return ""
+}
+
 // ---------------------------------------------------------
 // helper functions to print data from the ics.Calendar
 // and nested components for debugging only.

@@ -2,6 +2,9 @@ package main
 
 import (
 	"testing"
+	"time"
+
+	ics "github.com/arran4/golang-ical"
 )
 
 func strPtr(s string) *string {
@@ -11,8 +14,9 @@ func strPtr(s string) *string {
 // Test helper to create a simple worklog with tasks for testing
 func createTestWorklog() *Worklog {
 	return &Worklog{
-		path:  "testdata/test.ics",
-		tasks: []*Task{},
+		path:   "testdata/test.ics",
+		tasks:  []*Task{},
+		events: []*Event{},
 	}
 }
 
@@ -542,5 +546,180 @@ func TestDeleteTaskNonExistent(t *testing.T) {
 
 	if deleted != 0 {
 		t.Errorf("Expected 0 deleted tasks, got %d", deleted)
+	}
+}
+
+func TestDeleteTaskRemovesLinkedEvents(t *testing.T) {
+	worklog := createTestWorklog()
+
+	task := NewTask("task with events")
+	worklog.tasks = append(worklog.tasks, task)
+
+	// Create an event linked to the task
+	worklog.events = append(worklog.events, &Event{
+		uuid:      "event-1",
+		summary:   "Event 1",
+		relatedTo: task.uuid,
+	})
+
+	// Create an unrelated event
+	worklog.events = append(worklog.events, &Event{
+		uuid:      "event-2",
+		summary:   "Event 2",
+		relatedTo: "other-task-uuid",
+	})
+
+	deleted, err := worklog.DeleteTask(task.uuid)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if deleted != 1 {
+		t.Errorf("Expected 1 deleted task, got %d", deleted)
+	}
+
+	if len(worklog.events) != 1 {
+		t.Fatalf("Expected 1 remaining event, got %d", len(worklog.events))
+	}
+	if worklog.events[0].uuid != "event-2" {
+		t.Errorf("Expected remaining event to be 'event-2', got %s", worklog.events[0].uuid)
+	}
+}
+
+func TestDeleteTaskWithSubtasksRemovesAllLinkedEvents(t *testing.T) {
+	worklog := createTestWorklog()
+
+	parent := NewTask("parent")
+	child := NewTask("child")
+	grandchild := NewTask("grandchild")
+
+	worklog.tasks = append(worklog.tasks, parent)
+	parent.children = append(parent.children, child)
+	child.parent = parent
+	child.children = append(child.children, grandchild)
+	grandchild.parent = child
+
+	// Events linked to each task in the hierarchy
+	worklog.events = append(worklog.events, &Event{
+		uuid:      "event-parent",
+		summary:   "Parent Event",
+		relatedTo: parent.uuid,
+	})
+	worklog.events = append(worklog.events, &Event{
+		uuid:      "event-child",
+		summary:   "Child Event",
+		relatedTo: child.uuid,
+	})
+	worklog.events = append(worklog.events, &Event{
+		uuid:      "event-grandchild",
+		summary:   "Grandchild Event",
+		relatedTo: grandchild.uuid,
+	})
+
+	// Unrelated event
+	worklog.events = append(worklog.events, &Event{
+		uuid:      "event-unrelated",
+		summary:   "Unrelated Event",
+		relatedTo: "other-task-uuid",
+	})
+
+	deleted, err := worklog.DeleteTask(parent.uuid)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if deleted != 3 {
+		t.Errorf("Expected 3 deleted tasks, got %d", deleted)
+	}
+
+	if len(worklog.events) != 1 {
+		t.Fatalf("Expected 1 remaining event, got %d", len(worklog.events))
+	}
+	if worklog.events[0].uuid != "event-unrelated" {
+		t.Errorf("Expected remaining event to be 'event-unrelated', got %s", worklog.events[0].uuid)
+	}
+}
+
+func TestEventModelParsesProperties(t *testing.T) {
+	ve := ics.VEvent{}
+	ve.SetProperty(ics.ComponentPropertyUniqueId, "event-uuid-1")
+	ve.SetProperty(ics.ComponentPropertySummary, "Event Summary")
+	ve.SetProperty(ics.ComponentPropertyDescription, "Event Description")
+	ve.SetProperty("RELATED-TO", "task-uuid-1")
+	ve.SetProperty("X-KDE-ktimetracker-duration", "3600")
+
+	startTime := time.Date(2023, time.August, 27, 17, 0, 0, 0, time.UTC)
+	endTime := startTime.Add(30 * time.Minute)
+	ve.SetStartAt(startTime)
+	ve.SetEndAt(endTime)
+
+	event := makeEventForVEvent(&ve)
+
+	if event.uuid != "event-uuid-1" {
+		t.Errorf("Expected uuid 'event-uuid-1', got '%s'", event.uuid)
+	}
+	if event.summary != "Event Summary" {
+		t.Errorf("Expected summary 'Event Summary', got '%s'", event.summary)
+	}
+	if event.description != "Event Description" {
+		t.Errorf("Expected description 'Event Description', got '%s'", event.description)
+	}
+	if event.relatedTo != "task-uuid-1" {
+		t.Errorf("Expected relatedTo 'task-uuid-1', got '%s'", event.relatedTo)
+	}
+	if event.duration != 3600 {
+		t.Errorf("Expected duration 3600, got %d", event.duration)
+	}
+	if !event.dtstart.Equal(startTime) {
+		t.Errorf("Expected dtstart %v, got %v", startTime, event.dtstart)
+	}
+	if !event.dtend.Equal(endTime) {
+		t.Errorf("Expected dtend %v, got %v", endTime, event.dtend)
+	}
+	if event.dtstartProp == nil {
+		t.Errorf("Expected dtstartProp to be preserved")
+	}
+	if event.dtendProp == nil {
+		t.Errorf("Expected dtendProp to be preserved")
+	}
+}
+
+func TestEventRoundTrip(t *testing.T) {
+	ve := ics.VEvent{}
+	ve.SetProperty(ics.ComponentPropertyUniqueId, "event-uuid-1")
+	ve.SetProperty(ics.ComponentPropertySummary, "Event Summary")
+	ve.SetProperty(ics.ComponentPropertyDescription, "Event Description")
+	ve.SetProperty("RELATED-TO", "task-uuid-1")
+	ve.SetProperty("X-KDE-ktimetracker-duration", "3600")
+
+	startTime := time.Date(2023, time.August, 27, 17, 0, 0, 0, time.UTC)
+	endTime := startTime.Add(30 * time.Minute)
+	ve.SetStartAt(startTime)
+	ve.SetEndAt(endTime)
+
+	event := makeEventForVEvent(&ve)
+	outVe := makeVEventForEvent(&event)
+
+	if getEventProperty(&outVe, ics.ComponentPropertyUniqueId) != "event-uuid-1" {
+		t.Errorf("Expected uid 'event-uuid-1', got '%s'", getEventProperty(&outVe, ics.ComponentPropertyUniqueId))
+	}
+	if getEventProperty(&outVe, ics.ComponentPropertySummary) != "Event Summary" {
+		t.Errorf("Expected summary 'Event Summary', got '%s'", getEventProperty(&outVe, ics.ComponentPropertySummary))
+	}
+	if getEventProperty(&outVe, ics.ComponentPropertyDescription) != "Event Description" {
+		t.Errorf("Expected description 'Event Description', got '%s'", getEventProperty(&outVe, ics.ComponentPropertyDescription))
+	}
+	if getEventProperty(&outVe, "RELATED-TO") != "task-uuid-1" {
+		t.Errorf("Expected relatedTo 'task-uuid-1', got '%s'", getEventProperty(&outVe, "RELATED-TO"))
+	}
+	if getEventProperty(&outVe, "X-KDE-ktimetracker-duration") != "3600" {
+		t.Errorf("Expected duration '3600', got '%s'", getEventProperty(&outVe, "X-KDE-ktimetracker-duration"))
+	}
+
+	outStart, err := outVe.GetStartAt()
+	if err != nil || !outStart.Equal(startTime) {
+		t.Errorf("Expected start time %v, got %v, err=%v", startTime, outStart, err)
+	}
+	outEnd, err := outVe.GetEndAt()
+	if err != nil || !outEnd.Equal(endTime) {
+		t.Errorf("Expected end time %v, got %v, err=%v", endTime, outEnd, err)
 	}
 }

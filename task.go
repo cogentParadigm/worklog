@@ -104,16 +104,7 @@ func getTasksForTodos(cal *ics.Calendar) []*Task {
 	return makeTasksForTodos(getTodos(cal))
 }
 
-func getCalendarForTasks(tasks []*Task, original *ics.Calendar) *ics.Calendar {
-	if original == nil {
-		cal := ics.NewCalendar()
-		todos := makeTodosForTasks(tasks)
-		for _, todo := range todos {
-			cal.Components = append(cal.Components, todo)
-		}
-		return cal
-	}
-
+func getCalendarForTasks(tasks []*Task, events []*Event, original *ics.Calendar) *ics.Calendar {
 	// Build map of current tasks by UUID
 	allTasks := flattenTasks(tasks)
 	taskMap := make(map[string]*Task, len(allTasks))
@@ -121,11 +112,30 @@ func getCalendarForTasks(tasks []*Task, original *ics.Calendar) *ics.Calendar {
 		taskMap[task.uuid] = task
 	}
 
+	// Build map of current events by UUID
+	eventMap := make(map[string]*Event, len(events))
+	for _, event := range events {
+		eventMap[event.uuid] = event
+	}
+
+	if original == nil {
+		cal := ics.NewCalendar()
+		todos := makeTodosForTasks(tasks)
+		for _, todo := range todos {
+			cal.Components = append(cal.Components, todo)
+		}
+		for _, event := range events {
+			ve := makeVEventForEvent(event)
+			cal.Components = append(cal.Components, &ve)
+		}
+		return cal
+	}
+
 	cal := ics.NewCalendar()
 	// Preserve original calendar-level properties
 	cal.CalendarProperties = append([]ics.CalendarProperty(nil), original.CalendarProperties...)
 
-	// Iterate original components in order, replacing VTODOs and keeping everything else
+	// Iterate original components in order, replacing VTODOs and VEVENTs, keeping everything else
 	for _, comp := range original.Components {
 		switch c := comp.(type) {
 		case *ics.VTodo:
@@ -136,6 +146,14 @@ func getCalendarForTasks(tasks []*Task, original *ics.Calendar) *ics.Calendar {
 				delete(taskMap, uid)
 			}
 			// If task no longer exists, drop the VTODO (deletion)
+		case *ics.VEvent:
+			uid := getEventProperty(c, ics.ComponentPropertyUniqueId)
+			if event, ok := eventMap[uid]; ok {
+				ve := makeVEventForEvent(event)
+				cal.Components = append(cal.Components, &ve)
+				delete(eventMap, uid)
+			}
+			// If event no longer exists in our list, drop the VEVENT (orphaned / deleted)
 		default:
 			cal.Components = append(cal.Components, comp)
 		}
@@ -156,6 +174,21 @@ func getCalendarForTasks(tasks []*Task, original *ics.Calendar) *ics.Calendar {
 		}
 	}
 
+	// Append any brand-new events at the end, in UUID order for determinism
+	if len(eventMap) > 0 {
+		remaining := make([]*Event, 0, len(eventMap))
+		for _, event := range eventMap {
+			remaining = append(remaining, event)
+		}
+		sort.Slice(remaining, func(i, j int) bool {
+			return remaining[i].uuid < remaining[j].uuid
+		})
+		for _, event := range remaining {
+			ve := makeVEventForEvent(event)
+			cal.Components = append(cal.Components, &ve)
+		}
+	}
+
 	return cal
 }
 
@@ -165,6 +198,13 @@ func countSubtasks(task *Task) int {
 		count += countSubtasks(child)
 	}
 	return count
+}
+
+func collectTaskUUIDs(task *Task, set map[string]bool) {
+	set[task.uuid] = true
+	for _, child := range task.children {
+		collectTaskUUIDs(child, set)
+	}
 }
 
 func NewTask(name string) *Task {

@@ -95,7 +95,7 @@ func TestRoundTripPreservesTodoOrder(t *testing.T) {
 
 	// Round-trip: calendar -> tasks -> calendar
 	tasks := getTasksForTodos(cal)
-	outCal := getCalendarForTasks(tasks, nil)
+	outCal := getCalendarForTasks(tasks, nil, nil)
 	outTodos := getTodos(outCal)
 
 	if len(outTodos) != 3 {
@@ -132,7 +132,7 @@ func TestPropertyPreservation(t *testing.T) {
 		t.Fatalf("Expected 4 preserved properties, got %d", len(task.properties))
 	}
 
-	outCal := getCalendarForTasks(tasks, nil)
+	outCal := getCalendarForTasks(tasks, nil, nil)
 	outTodos := getTodos(outCal)
 	if len(outTodos) != 1 {
 		t.Fatalf("Expected 1 todo, got %d", len(outTodos))
@@ -182,7 +182,8 @@ func TestRoundTripPreservesVEvents(t *testing.T) {
 	cal.Components = append(cal.Components, &todo1, &event1, &todo2, &event2)
 
 	tasks := getTasksForTodos(cal)
-	outCal := getCalendarForTasks(tasks, cal)
+	events := makeEventsForVEvents(getEvents(cal))
+	outCal := getCalendarForTasks(tasks, events, cal)
 
 	if len(outCal.Components) != 4 {
 		t.Fatalf("Expected 4 components, got %d", len(outCal.Components))
@@ -233,7 +234,7 @@ func TestRoundTripPreservesCalendarProperties(t *testing.T) {
 	cal.Components = append(cal.Components, &todo)
 
 	tasks := getTasksForTodos(cal)
-	outCal := getCalendarForTasks(tasks, cal)
+	outCal := getCalendarForTasks(tasks, nil, cal)
 
 	var prodId, xKdeVersion string
 	for _, prop := range outCal.CalendarProperties {
@@ -266,7 +267,7 @@ func TestRoundTripAppendsNewTasks(t *testing.T) {
 	newTask.position = 1
 	tasks = append(tasks, newTask)
 
-	outCal := getCalendarForTasks(tasks, cal)
+	outCal := getCalendarForTasks(tasks, nil, cal)
 
 	if len(outCal.Components) != 2 {
 		t.Fatalf("Expected 2 components, got %d", len(outCal.Components))
@@ -284,10 +285,4 @@ func TestRoundTripAppendsNewTasks(t *testing.T) {
 	}
 }
 
-func getEventProperty(event *ics.VEvent, prop ics.ComponentProperty) string {
-	property := event.GetProperty(prop)
-	if property != nil {
-		return property.Value
-	}
-	return ""
-}
+
