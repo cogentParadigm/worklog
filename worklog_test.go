@@ -467,3 +467,80 @@ func TestUpdateTaskParentRemainsUnchangedOnError(t *testing.T) {
 		t.Errorf("Expected child's parent to still be parent")
 	}
 }
+
+func TestDeleteTask(t *testing.T) {
+	worklog := createTestWorklog()
+
+	parent := NewTask("parent")
+	child := NewTask("child")
+	grandchild := NewTask("grandchild")
+	sibling := NewTask("sibling")
+
+	worklog.tasks = append(worklog.tasks, parent, sibling)
+	parent.children = append(parent.children, child)
+	child.parent = parent
+	child.children = append(child.children, grandchild)
+	grandchild.parent = child
+
+	deleted, err := worklog.DeleteTask(parent.uuid)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if deleted != 3 {
+		t.Errorf("Expected 3 deleted tasks, got %d", deleted)
+	}
+
+	// parent should be gone from root
+	if len(worklog.tasks) != 1 || worklog.tasks[0].uuid != sibling.uuid {
+		t.Errorf("Expected only sibling at root")
+	}
+
+	// sibling should be unaffected
+	if sibling.parent != nil {
+		t.Errorf("Expected sibling to have no parent")
+	}
+
+	// parent and its descendants should not be findable
+	if worklog.FindTaskByUUID(parent.uuid) != nil {
+		t.Errorf("Expected parent to be gone")
+	}
+	if worklog.FindTaskByUUID(child.uuid) != nil {
+		t.Errorf("Expected child to be gone")
+	}
+	if worklog.FindTaskByUUID(grandchild.uuid) != nil {
+		t.Errorf("Expected grandchild to be gone")
+	}
+}
+
+func TestDeleteTaskLeaf(t *testing.T) {
+	worklog := createTestWorklog()
+	task := NewTask("leaf")
+	worklog.tasks = append(worklog.tasks, task)
+
+	deleted, err := worklog.DeleteTask(task.uuid)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if deleted != 1 {
+		t.Errorf("Expected 1 deleted task, got %d", deleted)
+	}
+
+	if len(worklog.tasks) != 0 {
+		t.Errorf("Expected no root tasks")
+	}
+}
+
+func TestDeleteTaskNonExistent(t *testing.T) {
+	worklog := createTestWorklog()
+
+	deleted, err := worklog.DeleteTask("non-existent-uuid")
+	if err == nil {
+		t.Errorf("Expected error for non-existent task")
+	}
+
+	if deleted != 0 {
+		t.Errorf("Expected 0 deleted tasks, got %d", deleted)
+	}
+}

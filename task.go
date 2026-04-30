@@ -159,6 +159,14 @@ func getCalendarForTasks(tasks []*Task, original *ics.Calendar) *ics.Calendar {
 	return cal
 }
 
+func countSubtasks(task *Task) int {
+	count := 1 // count the task itself
+	for _, child := range task.children {
+		count += countSubtasks(child)
+	}
+	return count
+}
+
 func NewTask(name string) *Task {
 	return &Task{
 		uuid: uuid.New().String(),

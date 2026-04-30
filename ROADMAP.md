@@ -8,7 +8,11 @@ Foundation for basic task management.
 - [x] List tasks (tree view, sorted alphabetically)
 - [x] Create tasks
 - [x] Complete `update` command implementation
-- [ ] Complete `delete` command implementation
+- [x] Complete `delete` command implementation
+- [ ] Clean up orphaned VEVENTs on task deletion
+  - Current: `delete` drops VTODOs but leaves related VEVENT timer sessions in the `.ics` file
+  - Goal: Build a proper Event model so `Save()` filters VEVENTs whose `RELATED-TO` matches deleted task UIDs
+  - This is foundational for Phase 2/4 timer functionality
 - [ ] Fix parent flag handling in `create` command
 
 ## Phase 2: Time Management

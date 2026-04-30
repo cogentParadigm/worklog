@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strings"
 )
 
 func main() {
@@ -36,6 +37,10 @@ func run(args []string) error {
 	updateName := updateCommand.String("name", "", "New name for the task")
 	updateDescription := updateCommand.String("description", "", "New description for the task")
 	updateParent := updateCommand.String("parent", "", "New parent UUID for the task")
+
+	deleteCommand := flag.NewFlagSet("delete", flag.ExitOnError)
+	deleteUUID := deleteCommand.String("uuid", "", "The UUID of the task to delete (required)")
+	deleteForce := deleteCommand.Bool("force", false, "Delete without confirmation")
 
 	worklog, err := NewWorklog("testdata/example.ics")
 	if err != nil {
@@ -84,6 +89,39 @@ func run(args []string) error {
 		if err := worklog.Save(); err != nil {
 			return err
 		}
+	case "delete":
+		deleteCommand.Parse(args[1:])
+		if *deleteUUID == "" {
+			return fmt.Errorf("-uuid flag is required for delete command")
+		}
+
+		task := worklog.FindTaskByUUID(*deleteUUID)
+		if task == nil {
+			return fmt.Errorf("task with UUID '%s' not found", *deleteUUID)
+		}
+
+		count := countSubtasks(task)
+		if !*deleteForce {
+			fmt.Printf("This will delete '%s' and %d subtask(s).\n", task.name, count-1)
+			fmt.Print("Continue? [y/N] ")
+			var response string
+			if _, err := fmt.Scanln(&response); err != nil {
+				return fmt.Errorf("failed to read confirmation: %w", err)
+			}
+			if strings.ToLower(strings.TrimSpace(response)) != "y" {
+				fmt.Println("Deletion cancelled.")
+				return nil
+			}
+		}
+
+		deleted, err := worklog.DeleteTask(*deleteUUID)
+		if err != nil {
+			return err
+		}
+		if err := worklog.Save(); err != nil {
+			return err
+		}
+		fmt.Printf("Deleted '%s' and %d subtask(s).\n", task.name, deleted-1)
 	default:
 		return fmt.Errorf("unknown command '%s'", args[0])
 	}

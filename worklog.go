@@ -145,6 +145,17 @@ func (worklog *Worklog) UpdateTask(uuid string, update TaskUpdate) error {
 	return nil
 }
 
+func (worklog *Worklog) DeleteTask(uuid string) (int, error) {
+	task := worklog.FindTaskByUUID(uuid)
+	if task == nil {
+		return 0, fmt.Errorf("task with UUID '%s' not found", uuid)
+	}
+
+	count := countSubtasks(task)
+	worklog.removeFromParent(task)
+	return count, nil
+}
+
 func (worklog *Worklog) GetEvents() []*ics.VEvent {
 	if worklog.calendar == nil {
 		return nil
