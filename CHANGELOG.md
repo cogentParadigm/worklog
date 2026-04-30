@@ -1,3 +1,10 @@
+## [0.4.1](https://github.com/cogentParadigm/worklog/compare/v0.4.0...v0.4.1) (2026-04-30)
+
+
+### Bug Fixes
+
+* preserve property order in ICS component round-trip ([c2f1bcf](https://github.com/cogentParadigm/worklog/commit/c2f1bcf5cdb2d9ab102f09b251ad6b5f0671f9c0))
+
 # [0.4.0](https://github.com/cogentParadigm/worklog/compare/v0.3.0...v0.4.0) (2026-04-30)
 
 
