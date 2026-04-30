@@ -1,3 +1,10 @@
+# [0.2.0](https://github.com/cogentParadigm/worklog/compare/v0.1.1...v0.2.0) (2026-04-30)
+
+
+### Features
+
+* add TaskUpdate struct and support clearing fields in UpdateTask ([2a85ee7](https://github.com/cogentParadigm/worklog/commit/2a85ee7f9d77e2f4b8fe7866d8ee3c3a37400115))
+
 ## [0.1.1](https://github.com/cogentParadigm/worklog/compare/v0.1.0...v0.1.1) (2026-04-29)
 
 
