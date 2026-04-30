@@ -1,3 +1,10 @@
+# [0.4.0](https://github.com/cogentParadigm/worklog/compare/v0.3.0...v0.4.0) (2026-04-30)
+
+
+### Features
+
+* add Event model and clean up orphaned VEVENTs on task deletion ([a6a52e9](https://github.com/cogentParadigm/worklog/commit/a6a52e9fd8a0aac59db9b6f2d2f2d07194c80ca1))
+
 # [0.3.0](https://github.com/cogentParadigm/worklog/compare/v0.2.0...v0.3.0) (2026-04-30)
 
 
