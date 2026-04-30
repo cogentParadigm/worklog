@@ -59,6 +59,7 @@ func run(args []string) error {
 			if parentTask == nil {
 				return fmt.Errorf("parent task with UUID '%s' not found", *createParent)
 			}
+			worklog.removeFromParent(task)
 			task.parent = parentTask
 			parentTask.children = append(parentTask.children, task)
 		}

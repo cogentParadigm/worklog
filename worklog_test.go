@@ -723,3 +723,47 @@ func TestEventRoundTrip(t *testing.T) {
 		t.Errorf("Expected end time %v, got %v, err=%v", endTime, outEnd, err)
 	}
 }
+
+func TestCreateTaskWithParentRemovesFromRoot(t *testing.T) {
+	worklog := createTestWorklog()
+
+	parent := NewTask("Parent")
+	worklog.tasks = append(worklog.tasks, parent)
+
+	// Simulate `create` command with --parent
+	child := NewTask("Child")
+	worklog.tasks = append(worklog.tasks, child)
+
+	// This is the fix: remove from root before attaching
+	worklog.removeFromParent(child)
+	child.parent = parent
+	parent.children = append(parent.children, child)
+
+	// Child should NOT be a root task
+	for _, task := range worklog.tasks {
+		if task.uuid == child.uuid {
+			t.Errorf("Child should not be in root tasks after being attached to parent")
+		}
+	}
+
+	// Child should be in parent's children
+	if len(parent.children) != 1 || parent.children[0].uuid != child.uuid {
+		t.Errorf("Expected parent to have child as its only child")
+	}
+
+	// Deleting the parent should remove the child entirely
+	deleted, err := worklog.DeleteTask(parent.uuid)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if deleted != 2 {
+		t.Errorf("Expected 2 deleted tasks, got %d", deleted)
+	}
+
+	// Child should not have been left as a dangling root
+	for _, task := range worklog.tasks {
+		if task.uuid == child.uuid {
+			t.Errorf("Child should not be left as a root task after parent deletion")
+		}
+	}
+}

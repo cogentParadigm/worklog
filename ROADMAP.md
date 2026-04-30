@@ -13,7 +13,7 @@ Foundation for basic task management.
   - `delete` now drops both VTODOs and related VEVENT timer sessions
   - `Event` model with `time.Time` support added for Phase 2/4 timer functionality
   - `Save()` filters VEVENTs whose `RELATED-TO` matches deleted task UIDs
-- [ ] Fix parent flag handling in `create` command
+- [x] Fix parent flag handling in `create` command
 
 ## Phase 2: Time Management
 
