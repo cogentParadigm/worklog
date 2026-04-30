@@ -4,22 +4,6 @@ This document tracks known issues identified during code review.
 
 ## Issues
 
-### Cannot Clear/Unset Fields `[Medium]`
-**Location:** `worklog.go` - `UpdateTask()` function
-
-**Description:** The empty-string-check pattern (`if name != ""`, `if parentUUID != ""`) means:
-- Cannot unset a name or description
-- Cannot move a task back to root once it has a parent
-
-**Impact:** Limited flexibility in task updates; users may need workarounds.
-
-**Suggested Fix:**
-- Consider explicit "clear" sentinel value (e.g., `-`)
-- Or use a separate flag to indicate "clear this field"
-- Document this implicit contract in CLI help
-
----
-
 ### `delete` Command Advertised but Unimplemented `[Medium]`
 **Location:** `main.go`
 
@@ -30,19 +14,6 @@ This document tracks known issues identified during code review.
 **Suggested Fix:**
 - Either implement the delete command
 - Or remove it from the usage banner until implemented
-
----
-
-### `UpdateTask` API Design `[Low]`
-**Location:** `worklog.go` - `UpdateTask()` signature
-
-**Description:** Four positional string arguments is hard to read at call sites and doesn't scale well.
-
-**Impact:** Code readability, future extensibility.
-
-**Suggested Fix:**
-- Use an options struct (e.g., `TaskUpdate{ Name: "...", ParentUUID: "..." }`)
-- Or use functional options pattern
 
 ---
 
