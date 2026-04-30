@@ -36,13 +36,15 @@ func makeEventForVEvent(ve *ics.VEvent) Event {
 		event.dtend = dtend
 	}
 
-	// Capture original DTSTART/DTEND properties for round-trip preservation
-	for i, prop := range ve.Properties {
+	// Capture all original properties and keep pointers to DTSTART/DTEND
+	// within our own copy so round-trips preserve property order.
+	event.properties = append([]ics.IANAProperty(nil), ve.Properties...)
+	for i, prop := range event.properties {
 		switch prop.IANAToken {
 		case string(ics.ComponentPropertyDtStart):
-			event.dtstartProp = &ve.Properties[i]
+			event.dtstartProp = &event.properties[i]
 		case string(ics.ComponentPropertyDtEnd):
-			event.dtendProp = &ve.Properties[i]
+			event.dtendProp = &event.properties[i]
 		}
 	}
 
@@ -53,53 +55,85 @@ func makeEventForVEvent(ve *ics.VEvent) Event {
 		}
 	}
 
-	// Collect all unknown properties (skip the ones we've handled)
-	for _, prop := range ve.Properties {
-		switch prop.IANAToken {
-		case string(ics.ComponentPropertyUniqueId),
-			string(ics.ComponentPropertySummary),
-			string(ics.ComponentPropertyDescription),
-			"RELATED-TO",
-			string(ics.ComponentPropertyDtStart),
-			string(ics.ComponentPropertyDtEnd),
-			"X-KDE-ktimetracker-duration":
-			continue
-		}
-		event.properties = append(event.properties, prop)
-	}
-
 	return event
 }
 
 func makeVEventForEvent(event *Event) ics.VEvent {
 	ve := ics.VEvent{}
-	ve.SetProperty(ics.ComponentPropertyUniqueId, event.uuid)
-	ve.SetProperty(ics.ComponentPropertySummary, event.summary)
-	if event.description != "" {
+
+	emitted := make(map[string]bool)
+
+	for _, prop := range event.properties {
+		switch prop.IANAToken {
+		case string(ics.ComponentPropertyUniqueId):
+			ve.SetProperty(ics.ComponentPropertyUniqueId, event.uuid)
+			emitted["UID"] = true
+		case string(ics.ComponentPropertySummary):
+			ve.SetProperty(ics.ComponentPropertySummary, event.summary)
+			emitted["SUMMARY"] = true
+		case string(ics.ComponentPropertyDescription):
+			if event.description != "" {
+				ve.SetProperty(ics.ComponentPropertyDescription, event.description)
+				emitted["DESCRIPTION"] = true
+			}
+		case "RELATED-TO":
+			if event.relatedTo != "" {
+				ve.SetProperty("RELATED-TO", event.relatedTo)
+				emitted["RELATED-TO"] = true
+			}
+		case string(ics.ComponentPropertyDtStart):
+			if event.dtstartProp != nil {
+				ve.Properties = append(ve.Properties, *event.dtstartProp)
+			} else if !event.dtstart.IsZero() {
+				ve.SetStartAt(event.dtstart)
+			}
+			emitted["DTSTART"] = true
+		case string(ics.ComponentPropertyDtEnd):
+			if event.dtendProp != nil {
+				ve.Properties = append(ve.Properties, *event.dtendProp)
+			} else if !event.dtend.IsZero() {
+				ve.SetEndAt(event.dtend)
+			}
+			emitted["DTEND"] = true
+		case "X-KDE-ktimetracker-duration":
+			if event.duration > 0 {
+				ve.SetProperty("X-KDE-ktimetracker-duration", strconv.Itoa(event.duration))
+				emitted["X-KDE-ktimetracker-duration"] = true
+			}
+		default:
+			ve.Properties = append(ve.Properties, prop)
+		}
+	}
+
+	if !emitted["UID"] {
+		ve.SetProperty(ics.ComponentPropertyUniqueId, event.uuid)
+	}
+	if !emitted["SUMMARY"] {
+		ve.SetProperty(ics.ComponentPropertySummary, event.summary)
+	}
+	if !emitted["DESCRIPTION"] && event.description != "" {
 		ve.SetProperty(ics.ComponentPropertyDescription, event.description)
 	}
-	if event.relatedTo != "" {
+	if !emitted["RELATED-TO"] && event.relatedTo != "" {
 		ve.SetProperty("RELATED-TO", event.relatedTo)
 	}
-
-	// Restore original DTSTART/DTEND properties if available
-	if event.dtstartProp != nil {
-		ve.Properties = append(ve.Properties, *event.dtstartProp)
-	} else if !event.dtstart.IsZero() {
-		ve.SetStartAt(event.dtstart)
+	if !emitted["DTSTART"] && !event.dtstart.IsZero() {
+		if event.dtstartProp != nil {
+			ve.Properties = append(ve.Properties, *event.dtstartProp)
+		} else {
+			ve.SetStartAt(event.dtstart)
+		}
 	}
-	if event.dtendProp != nil {
-		ve.Properties = append(ve.Properties, *event.dtendProp)
-	} else if !event.dtend.IsZero() {
-		ve.SetEndAt(event.dtend)
+	if !emitted["DTEND"] && !event.dtend.IsZero() {
+		if event.dtendProp != nil {
+			ve.Properties = append(ve.Properties, *event.dtendProp)
+		} else {
+			ve.SetEndAt(event.dtend)
+		}
 	}
-
-	// Restore duration
-	if event.duration > 0 {
+	if !emitted["X-KDE-ktimetracker-duration"] && event.duration > 0 {
 		ve.SetProperty("X-KDE-ktimetracker-duration", strconv.Itoa(event.duration))
 	}
-
-	ve.Properties = append(ve.Properties, event.properties...)
 
 	return ve
 }

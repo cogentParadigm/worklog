@@ -128,8 +128,10 @@ func TestPropertyPreservation(t *testing.T) {
 		t.Fatalf("Expected 1 task, got %d", len(tasks))
 	}
 	task := tasks[0]
-	if len(task.properties) != 4 {
-		t.Fatalf("Expected 4 preserved properties, got %d", len(task.properties))
+	// All original properties are kept (UID, SUMMARY, DESCRIPTION, CREATED, PERCENT-COMPLETE,
+	// X-KDE-ktimetracker-totalSessionTime, X-KDE-ktimetracker-totalTaskTime)
+	if len(task.properties) != 7 {
+		t.Fatalf("Expected 7 preserved properties, got %d", len(task.properties))
 	}
 
 	outCal := getCalendarForTasks(tasks, nil, nil)
@@ -138,6 +140,21 @@ func TestPropertyPreservation(t *testing.T) {
 		t.Fatalf("Expected 1 todo, got %d", len(outTodos))
 	}
 	outTodo := outTodos[0]
+
+	// Verify property order is preserved
+	expectedOrder := []string{
+		"UID", "SUMMARY", "DESCRIPTION", "CREATED", "PERCENT-COMPLETE",
+		"X-KDE-ktimetracker-totalSessionTime", "X-KDE-ktimetracker-totalTaskTime",
+	}
+	if len(outTodo.Properties) != len(expectedOrder) {
+		t.Fatalf("Expected %d properties, got %d", len(expectedOrder), len(outTodo.Properties))
+	}
+	for i, expectedToken := range expectedOrder {
+		actualToken := outTodo.Properties[i].IANAToken
+		if actualToken != expectedToken {
+			t.Errorf("Property %d: expected %s, got %s", i, expectedToken, actualToken)
+		}
+	}
 
 	expectedProps := map[string]string{
 		"CREATED":                             "20240101T000000Z",

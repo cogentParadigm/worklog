@@ -28,25 +28,49 @@ func makeTaskForTodo(todo *ics.VTodo) (Task, string) {
 		description: getProperty(todo, ics.ComponentPropertyDescription),
 	}
 	relatedTo := getProperty(todo, "RELATED-TO")
-	for _, prop := range todo.Properties {
-		switch prop.IANAToken {
-		case string(ics.ComponentPropertyUniqueId), string(ics.ComponentPropertySummary), string(ics.ComponentPropertyDescription), "RELATED-TO":
-			continue
-		}
-		task.properties = append(task.properties, prop)
-	}
+	task.properties = append([]ics.IANAProperty(nil), todo.Properties...)
 	return task, relatedTo
 }
 
 func makeTodoForTask(task *Task) ics.VTodo {
 	todo := ics.VTodo{}
-	todo.SetProperty(ics.ComponentPropertyUniqueId, task.uuid)
-	todo.SetProperty(ics.ComponentPropertySummary, task.name)
-	todo.SetProperty(ics.ComponentPropertyDescription, task.description)
-	if task.parent != nil {
+
+	emitted := make(map[string]bool)
+
+	for _, prop := range task.properties {
+		switch prop.IANAToken {
+		case string(ics.ComponentPropertyUniqueId):
+			todo.SetProperty(ics.ComponentPropertyUniqueId, task.uuid)
+			emitted["UID"] = true
+		case string(ics.ComponentPropertySummary):
+			todo.SetProperty(ics.ComponentPropertySummary, task.name)
+			emitted["SUMMARY"] = true
+		case string(ics.ComponentPropertyDescription):
+			todo.SetProperty(ics.ComponentPropertyDescription, task.description)
+			emitted["DESCRIPTION"] = true
+		case "RELATED-TO":
+			if task.parent != nil {
+				todo.SetProperty("RELATED-TO", task.parent.uuid)
+				emitted["RELATED-TO"] = true
+			}
+		default:
+			todo.Properties = append(todo.Properties, prop)
+		}
+	}
+
+	if !emitted["UID"] {
+		todo.SetProperty(ics.ComponentPropertyUniqueId, task.uuid)
+	}
+	if !emitted["SUMMARY"] {
+		todo.SetProperty(ics.ComponentPropertySummary, task.name)
+	}
+	if !emitted["DESCRIPTION"] && task.description != "" {
+		todo.SetProperty(ics.ComponentPropertyDescription, task.description)
+	}
+	if !emitted["RELATED-TO"] && task.parent != nil {
 		todo.SetProperty("RELATED-TO", task.parent.uuid)
 	}
-	todo.Properties = append(todo.Properties, task.properties...)
+
 	return todo
 }
 
