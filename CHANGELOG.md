@@ -1,3 +1,10 @@
+# [0.3.0](https://github.com/cogentParadigm/worklog/compare/v0.2.0...v0.3.0) (2026-04-30)
+
+
+### Features
+
+* implement delete command with interactive confirmation ([00aba5a](https://github.com/cogentParadigm/worklog/commit/00aba5a8cacc756c26dfe6ab4538eff89a438b9a))
+
 # [0.2.0](https://github.com/cogentParadigm/worklog/compare/v0.1.1...v0.2.0) (2026-04-30)
 
 
