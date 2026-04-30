@@ -1,3 +1,10 @@
+## [0.4.2](https://github.com/cogentParadigm/worklog/compare/v0.4.1...v0.4.2) (2026-04-30)
+
+
+### Bug Fixes
+
+* remove new task from root before attaching to parent in create ([7273169](https://github.com/cogentParadigm/worklog/commit/72731691ef2b88fe7aa6239bba2f1733c51662ba))
+
 ## [0.4.1](https://github.com/cogentParadigm/worklog/compare/v0.4.0...v0.4.1) (2026-04-30)
 
 
