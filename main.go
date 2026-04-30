@@ -65,7 +65,20 @@ func run(args []string) error {
 		if *updateUUID == "" {
 			return fmt.Errorf("-uuid flag is required for update command")
 		}
-		if err := worklog.UpdateTask(*updateUUID, *updateName, *updateDescription, *updateParent); err != nil {
+
+		update := TaskUpdate{}
+		updateCommand.Visit(func(f *flag.Flag) {
+			switch f.Name {
+			case "name":
+				update.Name = updateName
+			case "description":
+				update.Description = updateDescription
+			case "parent":
+				update.ParentUUID = updateParent
+			}
+		})
+
+		if err := worklog.UpdateTask(*updateUUID, update); err != nil {
 			return err
 		}
 		if err := worklog.Save(); err != nil {

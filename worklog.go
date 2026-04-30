@@ -89,28 +89,44 @@ func (worklog *Worklog) removeFromParent(task *Task) {
 	}
 }
 
-func (worklog *Worklog) UpdateTask(uuid string, name string, description string, parentUUID string) error {
+type TaskUpdate struct {
+	Name        *string
+	Description *string
+	ParentUUID  *string
+}
+
+func (worklog *Worklog) UpdateTask(uuid string, update TaskUpdate) error {
 	task := worklog.FindTaskByUUID(uuid)
 	if task == nil {
 		return fmt.Errorf("task with UUID '%s' not found", uuid)
 	}
 
-	if name != "" {
-		task.name = name
+	if update.Name != nil {
+		if *update.Name == "" {
+			return fmt.Errorf("cannot clear task name")
+		}
+		task.name = *update.Name
 	}
-	if description != "" {
-		task.description = description
+	if update.Description != nil {
+		task.description = *update.Description
 	}
-	if parentUUID != "" {
+	if update.ParentUUID != nil {
+		if *update.ParentUUID == "" {
+			// Move to root
+			worklog.removeFromParent(task)
+			worklog.tasks = append(worklog.tasks, task)
+			return nil
+		}
+
 		// Check for self-parenting (immediate cycle)
-		if parentUUID == uuid {
+		if *update.ParentUUID == uuid {
 			return fmt.Errorf("cannot set task as its own parent (cycle detected)")
 		}
 
 		// Find the new parent task
-		newParent := worklog.FindTaskByUUID(parentUUID)
+		newParent := worklog.FindTaskByUUID(*update.ParentUUID)
 		if newParent == nil {
-			return fmt.Errorf("parent task with UUID '%s' not found", parentUUID)
+			return fmt.Errorf("parent task with UUID '%s' not found", *update.ParentUUID)
 		}
 
 		// Check for deeper cycle: newParent must not be a descendant of task
