@@ -2,13 +2,6 @@
 
 This document tracks known issues identified during code review.
 
-### `Save()` has no integration test coverage
-**Priority:** Medium
-**Impact:** The entire load → modify → save → reload → verify round-trip is untested.
-
-- `ical_test.go` tests `saveCalendar` with a fresh calendar, but no test exercises `Worklog.Save()` end-to-end.
-- Should add a test that loads `example.ics`, mutates a task, saves, reloads, and asserts state preservation.
-
 ### `worklog list` destroys original VTODO position order
 **Priority:** Low
 **Impact:** KTimeTracker and other tools may rely on VTODO ordering.
