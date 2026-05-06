@@ -1,3 +1,10 @@
+# [0.8.0](https://github.com/cogentParadigm/worklog/compare/v0.7.0...v0.8.0) (2026-05-06)
+
+
+### Features
+
+* add -file and -output flags with WORKLOG_FILE env var ([4f01b5c](https://github.com/cogentParadigm/worklog/commit/4f01b5c8e1004bdf5a84e960defae978a1280360))
+
 # [0.7.0](https://github.com/cogentParadigm/worklog/compare/v0.6.0...v0.7.0) (2026-05-06)
 
 
