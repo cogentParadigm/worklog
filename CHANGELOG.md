@@ -1,3 +1,10 @@
+# [0.5.0](https://github.com/cogentParadigm/worklog/compare/v0.4.2...v0.5.0) (2026-05-06)
+
+
+### Features
+
+* add time entry management commands ([536b0cd](https://github.com/cogentParadigm/worklog/commit/536b0cd4380bfa92605314479ec4a24c8da289af))
+
 ## [0.4.2](https://github.com/cogentParadigm/worklog/compare/v0.4.1...v0.4.2) (2026-04-30)
 
 
