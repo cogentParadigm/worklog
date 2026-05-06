@@ -40,144 +40,15 @@ func run(args []string) error {
 		fmt.Println("Usage: worklog <command> [<args>]")
 		fmt.Println("")
 		fmt.Println("Available commands:")
-		fmt.Println("  list    List tasks")
-		fmt.Println("  create  Create a new task")
-		fmt.Println("  update  Update a task")
-		fmt.Println("  delete  Delete a task")
+		fmt.Println("  task    Manage tasks")
 		fmt.Println("  time    Manage time entries")
 		fmt.Println("  report  Generate reports")
 		return fmt.Errorf("no command provided")
 	}
 
 	switch args[0] {
-	case "list":
-		listCommand := flag.NewFlagSet("list", flag.ExitOnError)
-		listFile := listCommand.String("file", "", "Path to .ics file (overrides WORKLOG_FILE)")
-		listCommand.Parse(args[1:])
-
-		worklog, err := loadWorklog(*listFile)
-		if err != nil {
-			return err
-		}
-
-		direct, totals := worklog.ComputeTaskTotals()
-		nameWidth := maxTaskLineWidth(worklog.tasks, "")
-		if nameWidth < 4 {
-			nameWidth = 4
-		}
-		uuidWidth := 36
-		durWidth := 10
-		fmt.Printf("%-*s %-*s %*s %*s\n", uuidWidth, "UUID", nameWidth, "Name", durWidth, "Duration", durWidth, "Total")
-		printTasks(worklog.tasks, "", direct, totals, nameWidth)
-	case "create":
-		createCommand := flag.NewFlagSet("create", flag.ExitOnError)
-		createFile := createCommand.String("file", "", "Path to .ics file (overrides WORKLOG_FILE)")
-		createOutput := createCommand.String("output", "", "Output path for the updated .ics file (defaults to input file)")
-		createName := createCommand.String("name", "", "The name of the task")
-		createDescription := createCommand.String("description", "", "Additional or more detailed description")
-		createParent := createCommand.String("parent", "", "Unique ID of parent task")
-		createCommand.Parse(args[1:])
-
-		worklog, err := loadWorklog(*createFile)
-		if err != nil {
-			return err
-		}
-
-		task := worklog.NewTask(*createName)
-		task.description = *createDescription
-		if *createParent != "" {
-			parentTask := worklog.FindTaskByUUID(*createParent)
-			if parentTask == nil {
-				return fmt.Errorf("parent task with UUID '%s' not found", *createParent)
-			}
-			worklog.removeFromParent(task)
-			task.parent = parentTask
-			parentTask.children = append(parentTask.children, task)
-		}
-		if err := worklog.Save(*createOutput); err != nil {
-			return err
-		}
-	case "update":
-		updateCommand := flag.NewFlagSet("update", flag.ExitOnError)
-		updateFile := updateCommand.String("file", "", "Path to .ics file (overrides WORKLOG_FILE)")
-		updateOutput := updateCommand.String("output", "", "Output path for the updated .ics file (defaults to input file)")
-		updateUUID := updateCommand.String("uuid", "", "The UUID of the task to update (required)")
-		updateName := updateCommand.String("name", "", "New name for the task")
-		updateDescription := updateCommand.String("description", "", "New description for the task")
-		updateParent := updateCommand.String("parent", "", "New parent UUID for the task")
-		updateCommand.Parse(args[1:])
-
-		worklog, err := loadWorklog(*updateFile)
-		if err != nil {
-			return err
-		}
-
-		if *updateUUID == "" {
-			return fmt.Errorf("-uuid flag is required for update command")
-		}
-
-		update := TaskUpdate{}
-		updateCommand.Visit(func(f *flag.Flag) {
-			switch f.Name {
-			case "name":
-				update.Name = updateName
-			case "description":
-				update.Description = updateDescription
-			case "parent":
-				update.ParentUUID = updateParent
-			}
-		})
-
-		if err := worklog.UpdateTask(*updateUUID, update); err != nil {
-			return err
-		}
-		if err := worklog.Save(*updateOutput); err != nil {
-			return err
-		}
-	case "delete":
-		deleteCommand := flag.NewFlagSet("delete", flag.ExitOnError)
-		deleteFile := deleteCommand.String("file", "", "Path to .ics file (overrides WORKLOG_FILE)")
-		deleteOutput := deleteCommand.String("output", "", "Output path for the updated .ics file (defaults to input file)")
-		deleteUUID := deleteCommand.String("uuid", "", "The UUID of the task to delete (required)")
-		deleteForce := deleteCommand.Bool("force", false, "Delete without confirmation")
-		deleteCommand.Parse(args[1:])
-
-		worklog, err := loadWorklog(*deleteFile)
-		if err != nil {
-			return err
-		}
-
-		if *deleteUUID == "" {
-			return fmt.Errorf("-uuid flag is required for delete command")
-		}
-
-		task := worklog.FindTaskByUUID(*deleteUUID)
-		if task == nil {
-			return fmt.Errorf("task with UUID '%s' not found", *deleteUUID)
-		}
-
-		count := countSubtasks(task)
-		if !*deleteForce {
-			fmt.Printf("This will delete '%s' and %d subtask(s).\n", task.name, count-1)
-			fmt.Print("Continue? [y/N] ")
-			var response string
-			if _, err := fmt.Scanln(&response); err != nil {
-				return fmt.Errorf("failed to read confirmation: %w", err)
-			}
-			if strings.ToLower(strings.TrimSpace(response)) != "y" {
-				fmt.Println("Deletion cancelled.")
-				return nil
-			}
-		}
-
-		deleted, err := worklog.DeleteTask(*deleteUUID)
-		if err != nil {
-			return err
-		}
-		if err := worklog.Save(*deleteOutput); err != nil {
-			return err
-		}
-		fmt.Printf("Deleted '%s' and %d subtask(s).\n", task.name, deleted-1)
+	case "task":
+		return runTask(args[1:])
 	case "time":
 		if len(args) < 2 {
 			fmt.Println("Usage: worklog time <subcommand> [<args>]")
@@ -488,6 +359,172 @@ func run(args []string) error {
 	default:
 		return fmt.Errorf("unknown command '%s'", args[0])
 	}
+	return nil
+}
+
+func runTask(args []string) error {
+	if len(args) < 1 {
+		fmt.Println("Usage: worklog task <subcommand> [<args>]")
+		fmt.Println("")
+		fmt.Println("Available task subcommands:")
+		fmt.Println("  list    List tasks")
+		fmt.Println("  create  Create a new task")
+		fmt.Println("  update  Update a task")
+		fmt.Println("  delete  Delete a task")
+		return fmt.Errorf("no task subcommand provided")
+	}
+
+	switch args[0] {
+	case "list":
+		return runTaskList(args[1:])
+	case "create":
+		return runTaskCreate(args[1:])
+	case "update":
+		return runTaskUpdate(args[1:])
+	case "delete":
+		return runTaskDelete(args[1:])
+	default:
+		return fmt.Errorf("unknown task subcommand '%s'", args[0])
+	}
+}
+
+func runTaskList(args []string) error {
+	listCommand := flag.NewFlagSet("task list", flag.ExitOnError)
+	listFile := listCommand.String("file", "", "Path to .ics file (overrides WORKLOG_FILE)")
+	listCommand.Parse(args)
+
+	worklog, err := loadWorklog(*listFile)
+	if err != nil {
+		return err
+	}
+
+	direct, totals := worklog.ComputeTaskTotals()
+	nameWidth := maxTaskLineWidth(worklog.tasks, "")
+	if nameWidth < 4 {
+		nameWidth = 4
+	}
+	uuidWidth := 36
+	durWidth := 10
+	fmt.Printf("%-*s %-*s %*s %*s\n", uuidWidth, "UUID", nameWidth, "Name", durWidth, "Duration", durWidth, "Total")
+	printTasks(worklog.tasks, "", direct, totals, nameWidth)
+	return nil
+}
+
+func runTaskCreate(args []string) error {
+	createCommand := flag.NewFlagSet("task create", flag.ExitOnError)
+	createFile := createCommand.String("file", "", "Path to .ics file (overrides WORKLOG_FILE)")
+	createOutput := createCommand.String("output", "", "Output path for the updated .ics file (defaults to input file)")
+	createName := createCommand.String("name", "", "The name of the task")
+	createDescription := createCommand.String("description", "", "Additional or more detailed description")
+	createParent := createCommand.String("parent", "", "Unique ID of parent task")
+	createCommand.Parse(args)
+
+	worklog, err := loadWorklog(*createFile)
+	if err != nil {
+		return err
+	}
+
+	task := worklog.NewTask(*createName)
+	task.description = *createDescription
+	if *createParent != "" {
+		parentTask := worklog.FindTaskByUUID(*createParent)
+		if parentTask == nil {
+			return fmt.Errorf("parent task with UUID '%s' not found", *createParent)
+		}
+		worklog.removeFromParent(task)
+		task.parent = parentTask
+		parentTask.children = append(parentTask.children, task)
+	}
+	if err := worklog.Save(*createOutput); err != nil {
+		return err
+	}
+	return nil
+}
+
+func runTaskUpdate(args []string) error {
+	updateCommand := flag.NewFlagSet("task update", flag.ExitOnError)
+	updateFile := updateCommand.String("file", "", "Path to .ics file (overrides WORKLOG_FILE)")
+	updateOutput := updateCommand.String("output", "", "Output path for the updated .ics file (defaults to input file)")
+	updateUUID := updateCommand.String("uuid", "", "The UUID of the task to update (required)")
+	updateName := updateCommand.String("name", "", "New name for the task")
+	updateDescription := updateCommand.String("description", "", "New description for the task")
+	updateParent := updateCommand.String("parent", "", "New parent UUID for the task")
+	updateCommand.Parse(args)
+
+	worklog, err := loadWorklog(*updateFile)
+	if err != nil {
+		return err
+	}
+
+	if *updateUUID == "" {
+		return fmt.Errorf("-uuid flag is required for update command")
+	}
+
+	update := TaskUpdate{}
+	updateCommand.Visit(func(f *flag.Flag) {
+		switch f.Name {
+		case "name":
+			update.Name = updateName
+		case "description":
+			update.Description = updateDescription
+		case "parent":
+			update.ParentUUID = updateParent
+		}
+	})
+
+	if err := worklog.UpdateTask(*updateUUID, update); err != nil {
+		return err
+	}
+	if err := worklog.Save(*updateOutput); err != nil {
+		return err
+	}
+	return nil
+}
+
+func runTaskDelete(args []string) error {
+	deleteCommand := flag.NewFlagSet("task delete", flag.ExitOnError)
+	deleteFile := deleteCommand.String("file", "", "Path to .ics file (overrides WORKLOG_FILE)")
+	deleteOutput := deleteCommand.String("output", "", "Output path for the updated .ics file (defaults to input file)")
+	deleteUUID := deleteCommand.String("uuid", "", "The UUID of the task to delete (required)")
+	deleteForce := deleteCommand.Bool("force", false, "Delete without confirmation")
+	deleteCommand.Parse(args)
+
+	worklog, err := loadWorklog(*deleteFile)
+	if err != nil {
+		return err
+	}
+
+	if *deleteUUID == "" {
+		return fmt.Errorf("-uuid flag is required for delete command")
+	}
+
+	task := worklog.FindTaskByUUID(*deleteUUID)
+	if task == nil {
+		return fmt.Errorf("task with UUID '%s' not found", *deleteUUID)
+	}
+
+	count := countSubtasks(task)
+	if !*deleteForce {
+		fmt.Printf("This will delete '%s' and %d subtask(s).\n", task.name, count-1)
+		fmt.Print("Continue? [y/N] ")
+		var response string
+		if _, err := fmt.Scanln(&response); err != nil {
+			return fmt.Errorf("failed to read confirmation: %w", err)
+		}
+		if strings.ToLower(strings.TrimSpace(response)) != "y" {
+			fmt.Println("Deletion cancelled.")
+			return nil
+		}
+	}
+
+	deleted, err := worklog.DeleteTask(*deleteUUID)
+	if err != nil {
+		return err
+	}
+	if err := worklog.Save(*deleteOutput); err != nil {
+		return err
+	}
+	fmt.Printf("Deleted '%s' and %d subtask(s).\n", task.name, deleted-1)
 	return nil
 }
 
