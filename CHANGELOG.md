@@ -1,3 +1,10 @@
+# [0.6.0](https://github.com/cogentParadigm/worklog/compare/v0.5.0...v0.6.0) (2026-05-06)
+
+
+### Features
+
+* add rolled-up time totals to task listing ([46ee9da](https://github.com/cogentParadigm/worklog/commit/46ee9dade733c9742e49c326be3ef5fb1bd894de))
+
 # [0.5.0](https://github.com/cogentParadigm/worklog/compare/v0.4.2...v0.5.0) (2026-05-06)
 
 
