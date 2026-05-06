@@ -59,7 +59,7 @@ worklog create -file ~/source.ics -output ~/backup.ics -name "Backup task"
 
 ### `list`
 
-Lists all tasks sorted alphabetically by name, displaying the parent/child hierarchy.
+Lists all tasks sorted alphabetically by name, displaying the parent/child hierarchy, task UUID, direct duration, and rolled-up total duration.
 
 **Flags:**
 - `-file` — Path to the `.ics` file (overrides `WORKLOG_FILE` environment variable).

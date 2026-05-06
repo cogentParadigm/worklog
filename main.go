@@ -60,13 +60,15 @@ func run(args []string) error {
 			return err
 		}
 
-		totals := worklog.ComputeTaskTotals()
+		direct, totals := worklog.ComputeTaskTotals()
 		nameWidth := maxTaskLineWidth(worklog.tasks, "")
 		if nameWidth < 4 {
 			nameWidth = 4
 		}
-		fmt.Printf("%-*s %s\n", nameWidth, "Name", "Total")
-		printTasks(worklog.tasks, "", totals, nameWidth)
+		uuidWidth := 36
+		durWidth := 10
+		fmt.Printf("%-*s %-*s %*s %*s\n", uuidWidth, "UUID", nameWidth, "Name", durWidth, "Duration", durWidth, "Total")
+		printTasks(worklog.tasks, "", direct, totals, nameWidth)
 	case "create":
 		createCommand := flag.NewFlagSet("create", flag.ExitOnError)
 		createFile := createCommand.String("file", "", "Path to .ics file (overrides WORKLOG_FILE)")
@@ -531,7 +533,7 @@ func maxTaskLineWidth(tasks []*Task, prefix string) int {
 	return width
 }
 
-func printTasks(tasks []*Task, prefix string, totals map[string]int, nameWidth int) {
+func printTasks(tasks []*Task, prefix string, direct map[string]int, totals map[string]int, nameWidth int) {
 	sort.Slice(tasks, func(i, j int) bool {
 		return tasks[i].name < tasks[j].name
 	})
@@ -541,10 +543,11 @@ func printTasks(tasks []*Task, prefix string, totals map[string]int, nameWidth i
 			separator = "| - "
 		}
 		name := prefix + separator + task.name
-		dur := formatDuration(totals[task.uuid])
-		fmt.Printf("%-*s %s\n", nameWidth, name, dur)
+		directDur := formatDuration(direct[task.uuid])
+		totalDur := formatDuration(totals[task.uuid])
+		fmt.Printf("%-*s %-*s %*s %*s\n", 36, task.uuid, nameWidth, name, 10, directDur, 10, totalDur)
 		if len(task.children) > 0 {
-			printTasks(task.children, "  "+prefix, totals, nameWidth)
+			printTasks(task.children, "  "+prefix, direct, totals, nameWidth)
 		}
 	}
 }

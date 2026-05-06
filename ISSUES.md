@@ -2,14 +2,6 @@
 
 This document tracks known issues identified during code review.
 
-### No way to discover task UUIDs from CLI
-**Priority:** High
-**Impact:** Users cannot `update`, `delete`, `create -parent`, or `time add` without manually reading the raw `.ics` file.
-
-- `worklog list` shows `Name` and rolled-up `Total` only.
-- `worklog time list` shows UUIDs, but a user should not have to log time to see task identifiers.
-- Add `UUID` and **direct** `Duration` columns to `worklog list` output so it is uniform with `time list`.
-
 ### Inconsistent CLI command hierarchy
 **Priority:** Medium
 **Impact:** Mental model is fragmented; `time` and `report` are namespaces but task CRUD is at root.

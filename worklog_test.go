@@ -796,7 +796,20 @@ func TestComputeTaskTotals(t *testing.T) {
 		uuid: "ev-grandchild", relatedTo: grandchild.uuid, duration: 240,
 	})
 
-	totals := worklog.ComputeTaskTotals()
+	direct, totals := worklog.ComputeTaskTotals()
+
+	if direct[parent.uuid] != 60 {
+		t.Errorf("Expected parent direct 60, got %d", direct[parent.uuid])
+	}
+	if direct[child1.uuid] != 120 {
+		t.Errorf("Expected child1 direct 120, got %d", direct[child1.uuid])
+	}
+	if direct[child2.uuid] != 180 {
+		t.Errorf("Expected child2 direct 180, got %d", direct[child2.uuid])
+	}
+	if direct[grandchild.uuid] != 240 {
+		t.Errorf("Expected grandchild direct 240, got %d", direct[grandchild.uuid])
+	}
 
 	if totals[parent.uuid] != 600 {
 		t.Errorf("Expected parent total 600, got %d", totals[parent.uuid])

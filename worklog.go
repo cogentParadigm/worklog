@@ -177,11 +177,11 @@ func (worklog *Worklog) GetEvents() []*Event {
 	return worklog.events
 }
 
-func (worklog *Worklog) ComputeTaskTotals() map[string]int {
-	totals := make(map[string]int)
+func (worklog *Worklog) ComputeTaskTotals() (direct map[string]int, totals map[string]int) {
+	direct = make(map[string]int)
+	totals = make(map[string]int)
 
 	// Sum direct event durations per task
-	direct := make(map[string]int)
 	for _, event := range worklog.events {
 		direct[event.relatedTo] += event.duration
 	}
@@ -198,7 +198,7 @@ func (worklog *Worklog) ComputeTaskTotals() map[string]int {
 		totals[task.uuid] = total
 	}
 
-	return totals
+	return direct, totals
 }
 
 func (worklog *Worklog) AddEvent(event *Event) {
