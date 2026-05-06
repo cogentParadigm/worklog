@@ -1,3 +1,10 @@
+# [0.10.0](https://github.com/cogentParadigm/worklog/compare/v0.9.0...v0.10.0) (2026-05-06)
+
+
+### Features
+
+* move task CRUD commands under task namespace ([648a7a5](https://github.com/cogentParadigm/worklog/commit/648a7a50470a6f5dcd8d24fc4cf5c4f534008a56))
+
 # [0.9.0](https://github.com/cogentParadigm/worklog/compare/v0.8.0...v0.9.0) (2026-05-06)
 
 
