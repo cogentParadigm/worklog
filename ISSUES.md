@@ -2,12 +2,6 @@
 
 This document tracks known issues identified during code review.
 
-### `time edit` cannot set event description
-**Priority:** Low
-**Impact:** `EventUpdate` has a `Description` field, but the CLI only exposes `-note` which maps to `Summary`.
-
-- Add a `-description` flag to `time edit` (and possibly `time add`) to populate `Event.Description`.
-
 ### `Save()` has no integration test coverage
 **Priority:** Medium
 **Impact:** The entire load → modify → save → reload → verify round-trip is untested.
@@ -30,6 +24,12 @@ This document tracks known issues identified during code review.
 - `go.mod` includes `github.com/rivo/tview`, `github.com/gdamore/tcell/v2`, `github.com/lucasb-eyer/go-colorful`, etc.
 - Zero code references these packages; they appear to be a vestige of Phase 4 TUI work.
 - Remove from `go.mod` until TUI development actually begins.
+
+### `time edit` cannot set event description
+**Priority:** Low
+**Impact:** `EventUpdate` has a `Description` field, but the CLI only exposes `-note` which maps to `Summary`.
+
+- Add a `-description` flag to `time edit` (and possibly `time add`) to populate `Event.Description`.
 
 ---
 
