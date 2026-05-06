@@ -2,13 +2,6 @@
 
 This document tracks known issues identified during code review.
 
-### No `-h` / `--help` on subcommands
-**Priority:** Medium
-**Impact:** Poor CLI discoverability.
-
-- All subcommands use `flag.NewFlagSet(..., flag.ExitOnError)`, so `worklog create -h` exits with code 2 and prints default Go flag help to stderr.
-- Users must run a command with missing arguments to see usage text.
-
 ### `time edit` cannot set event description
 **Priority:** Low
 **Impact:** `EventUpdate` has a `Description` field, but the CLI only exposes `-note` which maps to `Summary`.

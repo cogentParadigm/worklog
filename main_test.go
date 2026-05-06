@@ -1,9 +1,11 @@
 package main
 
 import (
+	"flag"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -147,5 +149,116 @@ func TestRunTaskDelete(t *testing.T) {
 	}
 	if wl.FindTaskByUUID("a96e0dd3-1321-4bad-a58d-e256e23d44d8") != nil {
 		t.Error("expected task to be deleted")
+	}
+}
+
+func TestHelpTaskList(t *testing.T) {
+	out := captureStdout(func() {
+		err := run([]string{"task", "list", "-h"})
+		if err != flag.ErrHelp {
+			t.Errorf("expected flag.ErrHelp, got %v", err)
+		}
+	})
+	if !strings.Contains(out, "Usage: worklog task list") {
+		t.Errorf("expected usage output, got:\n%s", out)
+	}
+}
+
+func TestHelpTaskCreate(t *testing.T) {
+	out := captureStdout(func() {
+		err := run([]string{"task", "create", "--help"})
+		if err != flag.ErrHelp {
+			t.Errorf("expected flag.ErrHelp, got %v", err)
+		}
+	})
+	if !strings.Contains(out, "Usage: worklog task create") {
+		t.Errorf("expected usage output, got:\n%s", out)
+	}
+	if !strings.Contains(out, "Examples:") {
+		t.Error("expected Examples section in usage output")
+	}
+}
+
+func TestHelpTimeAdd(t *testing.T) {
+	out := captureStdout(func() {
+		err := run([]string{"time", "add", "-h"})
+		if err != flag.ErrHelp {
+			t.Errorf("expected flag.ErrHelp, got %v", err)
+		}
+	})
+	if !strings.Contains(out, "Usage: worklog time add") {
+		t.Errorf("expected usage output, got:\n%s", out)
+	}
+}
+
+func TestHelpReportTimesheet(t *testing.T) {
+	out := captureStdout(func() {
+		err := run([]string{"report", "timesheet", "--help"})
+		if err != flag.ErrHelp {
+			t.Errorf("expected flag.ErrHelp, got %v", err)
+		}
+	})
+	if !strings.Contains(out, "Usage: worklog report timesheet") {
+		t.Errorf("expected usage output, got:\n%s", out)
+	}
+}
+
+func TestHelpTopLevel(t *testing.T) {
+	out := captureStdout(func() {
+		err := run([]string{"-h"})
+		if err != flag.ErrHelp {
+			t.Errorf("expected flag.ErrHelp, got %v", err)
+		}
+	})
+	if !strings.Contains(out, "Usage: worklog <command>") {
+		t.Errorf("expected top-level usage, got:\n%s", out)
+	}
+}
+
+func TestHelpTopLevelDoubleDash(t *testing.T) {
+	out := captureStdout(func() {
+		err := run([]string{"--help"})
+		if err != flag.ErrHelp {
+			t.Errorf("expected flag.ErrHelp, got %v", err)
+		}
+	})
+	if !strings.Contains(out, "Available commands:") {
+		t.Errorf("expected top-level usage, got:\n%s", out)
+	}
+}
+
+func TestHelpTaskNamespace(t *testing.T) {
+	out := captureStdout(func() {
+		err := run([]string{"task", "-h"})
+		if err != flag.ErrHelp {
+			t.Errorf("expected flag.ErrHelp, got %v", err)
+		}
+	})
+	if !strings.Contains(out, "Usage: worklog task <subcommand>") {
+		t.Errorf("expected task namespace usage, got:\n%s", out)
+	}
+}
+
+func TestHelpTimeNamespace(t *testing.T) {
+	out := captureStdout(func() {
+		err := run([]string{"time", "--help"})
+		if err != flag.ErrHelp {
+			t.Errorf("expected flag.ErrHelp, got %v", err)
+		}
+	})
+	if !strings.Contains(out, "Usage: worklog time <subcommand>") {
+		t.Errorf("expected time namespace usage, got:\n%s", out)
+	}
+}
+
+func TestHelpReportNamespace(t *testing.T) {
+	out := captureStdout(func() {
+		err := run([]string{"report", "-h"})
+		if err != flag.ErrHelp {
+			t.Errorf("expected flag.ErrHelp, got %v", err)
+		}
+	})
+	if !strings.Contains(out, "Usage: worklog report <subcommand>") {
+		t.Errorf("expected report namespace usage, got:\n%s", out)
 	}
 }

@@ -12,8 +12,64 @@ import (
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
+		if err == flag.ErrHelp {
+			os.Exit(0)
+		}
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
+	}
+}
+
+func isHelpFlag(s string) bool {
+	return s == "-h" || s == "--help"
+}
+
+func printTopLevelUsage() {
+	fmt.Println("Usage: worklog <command> [<args>]")
+	fmt.Println("")
+	fmt.Println("Available commands:")
+	fmt.Println("  task    Manage tasks")
+	fmt.Println("  time    Manage time entries")
+	fmt.Println("  report  Generate reports")
+}
+
+func printTaskUsage() {
+	fmt.Println("Usage: worklog task <subcommand> [<args>]")
+	fmt.Println("")
+	fmt.Println("Available task subcommands:")
+	fmt.Println("  list    List tasks")
+	fmt.Println("  create  Create a new task")
+	fmt.Println("  update  Update a task")
+	fmt.Println("  delete  Delete a task")
+}
+
+func printTimeUsage() {
+	fmt.Println("Usage: worklog time <subcommand> [<args>]")
+	fmt.Println("")
+	fmt.Println("Available time subcommands:")
+	fmt.Println("  add     Add a time entry")
+	fmt.Println("  list    List time entries")
+	fmt.Println("  edit    Edit a time entry")
+	fmt.Println("  delete  Delete a time entry")
+}
+
+func printReportUsage() {
+	fmt.Println("Usage: worklog report <subcommand> [<args>]")
+	fmt.Println("")
+	fmt.Println("Available report subcommands:")
+	fmt.Println("  timesheet  Generate a timesheet report")
+}
+
+func configureFlagSet(fs *flag.FlagSet, description, examples string) {
+	fs.SetOutput(os.Stdout)
+	fs.Usage = func() {
+		fmt.Fprintf(fs.Output(), "Usage: worklog %s [flags]\n\n", fs.Name())
+		fmt.Fprintf(fs.Output(), "%s\n\n", description)
+		if examples != "" {
+			fmt.Fprintf(fs.Output(), "Examples:\n%s\n\n", examples)
+		}
+		fmt.Fprintf(fs.Output(), "Flags:\n")
+		fs.PrintDefaults()
 	}
 }
 
@@ -37,13 +93,12 @@ func loadWorklog(flagValue string) (*Worklog, error) {
 
 func run(args []string) error {
 	if len(args) < 1 {
-		fmt.Println("Usage: worklog <command> [<args>]")
-		fmt.Println("")
-		fmt.Println("Available commands:")
-		fmt.Println("  task    Manage tasks")
-		fmt.Println("  time    Manage time entries")
-		fmt.Println("  report  Generate reports")
+		printTopLevelUsage()
 		return fmt.Errorf("no command provided")
+	}
+	if isHelpFlag(args[0]) {
+		printTopLevelUsage()
+		return flag.ErrHelp
 	}
 
 	switch args[0] {
@@ -51,28 +106,29 @@ func run(args []string) error {
 		return runTask(args[1:])
 	case "time":
 		if len(args) < 2 {
-			fmt.Println("Usage: worklog time <subcommand> [<args>]")
-			fmt.Println("")
-			fmt.Println("Available time subcommands:")
-			fmt.Println("  add     Add a time entry")
-			fmt.Println("  list    List time entries")
-			fmt.Println("  edit    Edit a time entry")
-			fmt.Println("  delete  Delete a time entry")
+			printTimeUsage()
 			return fmt.Errorf("no time subcommand provided")
+		}
+		if isHelpFlag(args[1]) {
+			printTimeUsage()
+			return flag.ErrHelp
 		}
 		timeSubcommand := args[1]
 		timeArgs := args[2:]
 
 		switch timeSubcommand {
 		case "add":
-			timeAddCommand := flag.NewFlagSet("time add", flag.ExitOnError)
+			timeAddCommand := flag.NewFlagSet("time add", flag.ContinueOnError)
 			timeAddFile := timeAddCommand.String("file", "", "Path to .ics file (overrides WORKLOG_FILE)")
 			timeAddOutput := timeAddCommand.String("output", "", "Output path for the updated .ics file (defaults to input file)")
 			timeAddTask := timeAddCommand.String("task", "", "UUID of the task to log time against (required)")
 			timeAddDuration := timeAddCommand.String("duration", "", "Duration to log (e.g., 30m, 1h30m, 3600s) (required)")
 			timeAddStart := timeAddCommand.String("start", "", "Start time (optional, defaults to now-duration)")
 			timeAddNote := timeAddCommand.String("note", "", "Note for the time entry (optional, defaults to task name)")
-			timeAddCommand.Parse(timeArgs)
+			configureFlagSet(timeAddCommand, "Add a manual time entry for a task. If -start is omitted, the start time is computed as now - duration.", "  worklog time add -task <uuid> -duration 30m\n  worklog time add -task <uuid> -duration 1h -start \"2023-08-14 09:00:00\"\n  worklog time add -task <uuid> -duration 3600s -note \"Fixed bug\"")
+			if err := timeAddCommand.Parse(timeArgs); err != nil {
+				return err
+			}
 
 			worklog, err := loadWorklog(*timeAddFile)
 			if err != nil {
@@ -124,10 +180,13 @@ func run(args []string) error {
 			}
 			fmt.Printf("Added %s time entry for '%s'.\n", time.Duration(duration*int(time.Second)).String(), task.name)
 		case "list":
-			timeListCommand := flag.NewFlagSet("time list", flag.ExitOnError)
+			timeListCommand := flag.NewFlagSet("time list", flag.ContinueOnError)
 			timeListFile := timeListCommand.String("file", "", "Path to .ics file (overrides WORKLOG_FILE)")
 			timeListTask := timeListCommand.String("task", "", "Filter to a specific task UUID (optional)")
-			timeListCommand.Parse(timeArgs)
+			configureFlagSet(timeListCommand, "List time entries sorted by start time (most recent first).", "  worklog time list\n  worklog time list -task <uuid>")
+			if err := timeListCommand.Parse(timeArgs); err != nil {
+				return err
+			}
 
 			worklog, err := loadWorklog(*timeListFile)
 			if err != nil {
@@ -167,7 +226,7 @@ func run(args []string) error {
 				fmt.Printf("%-36s %-30s %-20s %-20s %-10s\n", event.uuid, taskName, startStr, endStr, durStr)
 			}
 		case "edit":
-			timeEditCommand := flag.NewFlagSet("time edit", flag.ExitOnError)
+			timeEditCommand := flag.NewFlagSet("time edit", flag.ContinueOnError)
 			timeEditFile := timeEditCommand.String("file", "", "Path to .ics file (overrides WORKLOG_FILE)")
 			timeEditOutput := timeEditCommand.String("output", "", "Output path for the updated .ics file (defaults to input file)")
 			timeEditUUID := timeEditCommand.String("uuid", "", "UUID of the time entry to edit (required)")
@@ -175,7 +234,10 @@ func run(args []string) error {
 			timeEditEnd := timeEditCommand.String("end", "", "New end time")
 			timeEditDuration := timeEditCommand.String("duration", "", "New duration (e.g., 30m, 1h30m)")
 			timeEditNote := timeEditCommand.String("note", "", "New note")
-			timeEditCommand.Parse(timeArgs)
+			configureFlagSet(timeEditCommand, "Edit an existing time entry. Only provided fields are changed. Duration is automatically recomputed when start or end is modified.", "  worklog time edit -uuid <event-uuid> -note \"Updated\"\n  worklog time edit -uuid <event-uuid> -start \"2023-08-14 10:00:00\" -end \"2023-08-14 11:30:00\"")
+			if err := timeEditCommand.Parse(timeArgs); err != nil {
+				return err
+			}
 
 			worklog, err := loadWorklog(*timeEditFile)
 			if err != nil {
@@ -224,12 +286,15 @@ func run(args []string) error {
 			}
 			fmt.Println("Time entry updated.")
 		case "delete":
-			timeDeleteCommand := flag.NewFlagSet("time delete", flag.ExitOnError)
+			timeDeleteCommand := flag.NewFlagSet("time delete", flag.ContinueOnError)
 			timeDeleteFile := timeDeleteCommand.String("file", "", "Path to .ics file (overrides WORKLOG_FILE)")
 			timeDeleteOutput := timeDeleteCommand.String("output", "", "Output path for the updated .ics file (defaults to input file)")
 			timeDeleteUUID := timeDeleteCommand.String("uuid", "", "UUID of the time entry to delete (required)")
 			timeDeleteForce := timeDeleteCommand.Bool("force", false, "Delete without confirmation")
-			timeDeleteCommand.Parse(timeArgs)
+			configureFlagSet(timeDeleteCommand, "Delete a time entry.", "  worklog time delete -uuid <event-uuid>\n  worklog time delete -uuid <event-uuid> -force")
+			if err := timeDeleteCommand.Parse(timeArgs); err != nil {
+				return err
+			}
 
 			worklog, err := loadWorklog(*timeDeleteFile)
 			if err != nil {
@@ -273,18 +338,19 @@ func run(args []string) error {
 		}
 	case "report":
 		if len(args) < 2 {
-			fmt.Println("Usage: worklog report <subcommand> [<args>]")
-			fmt.Println("")
-			fmt.Println("Available report subcommands:")
-			fmt.Println("  timesheet  Generate a timesheet report")
+			printReportUsage()
 			return fmt.Errorf("no report subcommand provided")
+		}
+		if isHelpFlag(args[1]) {
+			printReportUsage()
+			return flag.ErrHelp
 		}
 		reportSubcommand := args[1]
 		reportArgs := args[2:]
 
 		switch reportSubcommand {
 		case "timesheet":
-			timesheetCommand := flag.NewFlagSet("report timesheet", flag.ExitOnError)
+			timesheetCommand := flag.NewFlagSet("report timesheet", flag.ContinueOnError)
 			timesheetFile := timesheetCommand.String("file", "", "Path to .ics file (overrides WORKLOG_FILE)")
 			timesheetFrom := timesheetCommand.String("from", "", "Start date (YYYY-MM-DD, defaults to Monday of current week)")
 			timesheetTo := timesheetCommand.String("to", "", "End date (YYYY-MM-DD, defaults to Sunday of current week)")
@@ -292,7 +358,10 @@ func run(args []string) error {
 			timesheetDecimal := timesheetCommand.Bool("decimal", false, "Display hours in decimal format (e.g., 1.50)")
 			timesheetAll := timesheetCommand.Bool("all", false, "Use the full date range of all events")
 			timesheetHideEmpty := timesheetCommand.Bool("hide-empty", false, "Hide days with no time entries")
-			timesheetCommand.Parse(reportArgs)
+			configureFlagSet(timesheetCommand, "Generate a timesheet showing time logged per task per day. Defaults to the current week (Monday–Sunday).", "  worklog report timesheet\n  worklog report timesheet -from 2023-08-01 -to 2023-08-15\n  worklog report timesheet -format csv -decimal\n  worklog report timesheet -all -hide-empty")
+			if err := timesheetCommand.Parse(reportArgs); err != nil {
+				return err
+			}
 
 			worklog, err := loadWorklog(*timesheetFile)
 			if err != nil {
@@ -364,14 +433,12 @@ func run(args []string) error {
 
 func runTask(args []string) error {
 	if len(args) < 1 {
-		fmt.Println("Usage: worklog task <subcommand> [<args>]")
-		fmt.Println("")
-		fmt.Println("Available task subcommands:")
-		fmt.Println("  list    List tasks")
-		fmt.Println("  create  Create a new task")
-		fmt.Println("  update  Update a task")
-		fmt.Println("  delete  Delete a task")
+		printTaskUsage()
 		return fmt.Errorf("no task subcommand provided")
+	}
+	if isHelpFlag(args[0]) {
+		printTaskUsage()
+		return flag.ErrHelp
 	}
 
 	switch args[0] {
@@ -389,9 +456,12 @@ func runTask(args []string) error {
 }
 
 func runTaskList(args []string) error {
-	listCommand := flag.NewFlagSet("task list", flag.ExitOnError)
+	listCommand := flag.NewFlagSet("task list", flag.ContinueOnError)
 	listFile := listCommand.String("file", "", "Path to .ics file (overrides WORKLOG_FILE)")
-	listCommand.Parse(args)
+	configureFlagSet(listCommand, "List all tasks, showing the hierarchy, UUID, direct duration, and total duration.", "  worklog task list\n  worklog task list -file ~/tasks.ics")
+	if err := listCommand.Parse(args); err != nil {
+		return err
+	}
 
 	worklog, err := loadWorklog(*listFile)
 	if err != nil {
@@ -411,13 +481,16 @@ func runTaskList(args []string) error {
 }
 
 func runTaskCreate(args []string) error {
-	createCommand := flag.NewFlagSet("task create", flag.ExitOnError)
+	createCommand := flag.NewFlagSet("task create", flag.ContinueOnError)
 	createFile := createCommand.String("file", "", "Path to .ics file (overrides WORKLOG_FILE)")
 	createOutput := createCommand.String("output", "", "Output path for the updated .ics file (defaults to input file)")
 	createName := createCommand.String("name", "", "The name of the task")
 	createDescription := createCommand.String("description", "", "Additional or more detailed description")
 	createParent := createCommand.String("parent", "", "Unique ID of parent task")
-	createCommand.Parse(args)
+	configureFlagSet(createCommand, "Create a new task with an auto-generated UUID.", "  worklog task create -name \"Project Setup\"\n  worklog task create -name \"Subtask\" -parent <uuid>\n  worklog task create -file ~/tasks.ics -output ~/backup.ics -name \"Backup\"")
+	if err := createCommand.Parse(args); err != nil {
+		return err
+	}
 
 	worklog, err := loadWorklog(*createFile)
 	if err != nil {
@@ -442,14 +515,17 @@ func runTaskCreate(args []string) error {
 }
 
 func runTaskUpdate(args []string) error {
-	updateCommand := flag.NewFlagSet("task update", flag.ExitOnError)
+	updateCommand := flag.NewFlagSet("task update", flag.ContinueOnError)
 	updateFile := updateCommand.String("file", "", "Path to .ics file (overrides WORKLOG_FILE)")
 	updateOutput := updateCommand.String("output", "", "Output path for the updated .ics file (defaults to input file)")
 	updateUUID := updateCommand.String("uuid", "", "The UUID of the task to update (required)")
 	updateName := updateCommand.String("name", "", "New name for the task")
 	updateDescription := updateCommand.String("description", "", "New description for the task")
 	updateParent := updateCommand.String("parent", "", "New parent UUID for the task")
-	updateCommand.Parse(args)
+	configureFlagSet(updateCommand, "Update an existing task. Only provided fields are changed.", "  worklog task update -uuid <uuid> -name \"New Name\"\n  worklog task update -uuid <uuid> -parent \"\"\n  worklog task update -uuid <uuid> -description \"Details\"")
+	if err := updateCommand.Parse(args); err != nil {
+		return err
+	}
 
 	worklog, err := loadWorklog(*updateFile)
 	if err != nil {
@@ -482,12 +558,15 @@ func runTaskUpdate(args []string) error {
 }
 
 func runTaskDelete(args []string) error {
-	deleteCommand := flag.NewFlagSet("task delete", flag.ExitOnError)
+	deleteCommand := flag.NewFlagSet("task delete", flag.ContinueOnError)
 	deleteFile := deleteCommand.String("file", "", "Path to .ics file (overrides WORKLOG_FILE)")
 	deleteOutput := deleteCommand.String("output", "", "Output path for the updated .ics file (defaults to input file)")
 	deleteUUID := deleteCommand.String("uuid", "", "The UUID of the task to delete (required)")
 	deleteForce := deleteCommand.Bool("force", false, "Delete without confirmation")
-	deleteCommand.Parse(args)
+	configureFlagSet(deleteCommand, "Delete a task and all of its subtasks recursively.", "  worklog task delete -uuid <uuid>\n  worklog task delete -uuid <uuid> -force")
+	if err := deleteCommand.Parse(args); err != nil {
+		return err
+	}
 
 	worklog, err := loadWorklog(*deleteFile)
 	if err != nil {
