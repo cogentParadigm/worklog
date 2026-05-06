@@ -1,3 +1,10 @@
+# [0.9.0](https://github.com/cogentParadigm/worklog/compare/v0.8.0...v0.9.0) (2026-05-06)
+
+
+### Features
+
+* add UUID and Duration columns to list command ([7b20d22](https://github.com/cogentParadigm/worklog/commit/7b20d225fabf5951a8afdbb8349cf61ee4a4e18d))
+
 # [0.8.0](https://github.com/cogentParadigm/worklog/compare/v0.7.0...v0.8.0) (2026-05-06)
 
 
