@@ -1,3 +1,10 @@
+# [0.7.0](https://github.com/cogentParadigm/worklog/compare/v0.6.0...v0.7.0) (2026-05-06)
+
+
+### Features
+
+* add timesheet report command ([6388816](https://github.com/cogentParadigm/worklog/commit/6388816d927871c9a55096e5aee43d0155568abb))
+
 # [0.6.0](https://github.com/cogentParadigm/worklog/compare/v0.5.0...v0.6.0) (2026-05-06)
 
 
