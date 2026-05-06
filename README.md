@@ -13,6 +13,7 @@ Worklog reads and writes standard iCalendar (`.ics`) files, making it compatible
 - **KTimeTracker Compatible**: Reads and writes standard `.ics` files with VTODO (tasks) and VEVENT (time entries)
 - **Hierarchical Tasks**: Supports parent-child task relationships
 - **Simple CLI**: List, create, update, and delete tasks from the command line
+- **Time Entry Management**: Add, list, edit, and delete manual time entries with duration auto-recompute
 - **Extensible**: Architecture supports plugins/integrations for external time tracking systems
 
 ## Installation
@@ -104,6 +105,72 @@ worklog delete -uuid <uuid>
 worklog delete -uuid <uuid> -force
 ```
 
+### `time add`
+
+Adds a manual time entry for a task. If `-start` is omitted, the start time is computed as `now - duration`, matching KTimeTracker behavior.
+
+**Flags:**
+- `-task` — UUID of the task to log time against (required).
+- `-duration` — Duration to log. Accepts Go duration strings (`30m`, `1h30m`, `3600s`) or raw seconds (required).
+- `-start` — Start datetime. Optional formats: `2023-08-14T09:00:00`, `2023-08-14 09:00:00`, `09:00:00`, `09:00` (defaults to now - duration).
+- `-note` — Note for the time entry (optional, defaults to the task's name).
+
+**Examples:**
+```bash
+# Log 30 minutes ending now
+worklog time add -task <uuid> -duration 30m
+
+# Log 1 hour starting at a specific time
+worklog time add -task <uuid> -duration 1h -start "2023-08-14 09:00:00"
+
+# Log with a custom note
+worklog time add -task <uuid> -duration 3600s -note "Fixed authentication bug"
+```
+
+### `time list`
+
+Lists time entries sorted by start time (most recent first). Optionally filter to a specific task.
+
+**Flags:**
+- `-task` — Filter to a specific task UUID (optional).
+
+**Example:**
+```bash
+worklog time list
+worklog time list -task <uuid>
+```
+
+### `time edit`
+
+Edits an existing time entry. Only provided fields are changed. Duration is automatically recomputed when start or end is modified.
+
+**Flags:**
+- `-uuid` — UUID of the time entry to edit (required).
+- `-start` — New start time.
+- `-end` — New end time.
+- `-duration` — New duration (e.g., `30m`, `1h30m`).
+- `-note` — New note.
+
+**Examples:**
+```bash
+worklog time edit -uuid <event-uuid> -note "Updated description"
+worklog time edit -uuid <event-uuid> -start "2023-08-14 10:00:00" -end "2023-08-14 11:30:00"
+```
+
+### `time delete`
+
+Deletes a time entry.
+
+**Flags:**
+- `-uuid` — UUID of the time entry to delete (required).
+- `-force` — Delete without interactive confirmation.
+
+**Example:**
+```bash
+worklog time delete -uuid <event-uuid>
+worklog time delete -uuid <event-uuid> -force
+```
+
 ## File I/O
 
 The tool currently reads from `testdata/example.ics` and writes to `testdata/example-output.ics`. This path is temporary and will become configurable in a future release.
@@ -133,6 +200,7 @@ See [ROADMAP.md](ROADMAP.md) for details on planned features.
 - `main.go` - CLI entry point and command routing
 - `worklog.go` - Core Worklog struct and persistence
 - `task.go` - Task domain model and iCalendar conversion
+- `event.go` - Event/time entry model and iCalendar conversion
 - `ical.go` - iCalendar file I/O utilities
 - `*_test.go` - Unit tests
 - `testdata/` - Sample iCalendar files used for development and testing

@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	ics "github.com/arran4/golang-ical"
 )
@@ -175,6 +176,96 @@ func (worklog *Worklog) DeleteTask(uuid string) (int, error) {
 
 func (worklog *Worklog) GetEvents() []*Event {
 	return worklog.events
+}
+
+func (worklog *Worklog) AddEvent(event *Event) {
+	worklog.events = append(worklog.events, event)
+}
+
+func (worklog *Worklog) FindEventByUUID(uuid string) *Event {
+	for _, event := range worklog.events {
+		if event.uuid == uuid {
+			return event
+		}
+	}
+	return nil
+}
+
+func (worklog *Worklog) DeleteEvent(uuid string) error {
+	for i, event := range worklog.events {
+		if event.uuid == uuid {
+			worklog.events = append(worklog.events[:i], worklog.events[i+1:]...)
+			return nil
+		}
+	}
+	return fmt.Errorf("event with UUID '%s' not found", uuid)
+}
+
+type EventUpdate struct {
+	Dtstart     *time.Time
+	Dtend       *time.Time
+	Duration    *int
+	Summary     *string
+	Description *string
+}
+
+func (worklog *Worklog) UpdateEvent(uuid string, update EventUpdate) error {
+	event := worklog.FindEventByUUID(uuid)
+	if event == nil {
+		return fmt.Errorf("event with UUID '%s' not found", uuid)
+	}
+
+	if update.Summary != nil {
+		event.summary = *update.Summary
+	}
+	if update.Description != nil {
+		event.description = *update.Description
+	}
+
+	startChanged := update.Dtstart != nil
+	endChanged := update.Dtend != nil
+	durChanged := update.Duration != nil
+
+	if startChanged {
+		event.dtstart = *update.Dtstart
+	}
+	if endChanged {
+		event.dtend = *update.Dtend
+	}
+	if durChanged {
+		event.duration = *update.Duration
+	}
+
+	// Auto-recompute based on what changed
+	switch {
+	case startChanged && endChanged:
+		if !event.dtstart.IsZero() && !event.dtend.IsZero() {
+			event.duration = int(event.dtend.Sub(event.dtstart).Seconds())
+		}
+	case startChanged && durChanged && !endChanged:
+		if !event.dtstart.IsZero() {
+			event.dtend = event.dtstart.Add(time.Duration(event.duration) * time.Second)
+		}
+	case endChanged && durChanged && !startChanged:
+		if !event.dtend.IsZero() {
+			event.dtstart = event.dtend.Add(-time.Duration(event.duration) * time.Second)
+		}
+	case startChanged && !endChanged && !durChanged:
+		if !event.dtstart.IsZero() && !event.dtend.IsZero() {
+			event.duration = int(event.dtend.Sub(event.dtstart).Seconds())
+		}
+	case endChanged && !startChanged && !durChanged:
+		if !event.dtstart.IsZero() && !event.dtend.IsZero() {
+			event.duration = int(event.dtend.Sub(event.dtstart).Seconds())
+		}
+	case durChanged && !startChanged && !endChanged:
+		if !event.dtstart.IsZero() {
+			event.dtend = event.dtstart.Add(time.Duration(event.duration) * time.Second)
+		}
+	}
+
+	event.updateLastModified()
+	return nil
 }
 
 func (worklog *Worklog) Save() error {

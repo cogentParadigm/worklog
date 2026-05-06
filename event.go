@@ -5,6 +5,7 @@ import (
 	"time"
 
 	ics "github.com/arran4/golang-ical"
+	"github.com/google/uuid"
 )
 
 type Event struct {
@@ -18,6 +19,42 @@ type Event struct {
 	dtendProp   *ics.IANAProperty // preserves original DTEND formatting/TZID
 	duration    int
 	properties  []ics.IANAProperty
+}
+
+func NewEvent(taskUUID string, start, end time.Time, duration int, note string) *Event {
+	now := time.Now().UTC()
+	return &Event{
+		uuid:      uuid.New().String(),
+		relatedTo: taskUUID,
+		dtstart:   start,
+		dtend:     end,
+		duration:  duration,
+		summary:   note,
+		properties: []ics.IANAProperty{
+			{BaseProperty: ics.BaseProperty{IANAToken: "DTSTAMP", Value: now.Format("20060102T150405Z")}},
+			{BaseProperty: ics.BaseProperty{IANAToken: "CREATED", Value: now.Format("20060102T150405Z")}},
+			{BaseProperty: ics.BaseProperty{IANAToken: "LAST-MODIFIED", Value: now.Format("20060102T150405Z")}},
+			{BaseProperty: ics.BaseProperty{IANAToken: "CATEGORIES", Value: "KTimeTracker"}},
+			{BaseProperty: ics.BaseProperty{IANAToken: "TRANSP", Value: "OPAQUE"}},
+		},
+	}
+}
+
+func (event *Event) updateLastModified() {
+	now := time.Now().UTC().Format("20060102T150405Z")
+	found := false
+	for i, prop := range event.properties {
+		if prop.IANAToken == "LAST-MODIFIED" {
+			event.properties[i].Value = now
+			found = true
+			break
+		}
+	}
+	if !found {
+		event.properties = append(event.properties, ics.IANAProperty{
+			BaseProperty: ics.BaseProperty{IANAToken: "LAST-MODIFIED", Value: now},
+		})
+	}
 }
 
 func makeEventForVEvent(ve *ics.VEvent) Event {

@@ -767,3 +767,166 @@ func TestCreateTaskWithParentRemovesFromRoot(t *testing.T) {
 		}
 	}
 }
+
+func TestAddEvent(t *testing.T) {
+	worklog := createTestWorklog()
+	start := time.Date(2023, 8, 14, 9, 0, 0, 0, time.Local)
+	end := time.Date(2023, 8, 14, 10, 0, 0, 0, time.Local)
+	event := NewEvent("task-uuid", start, end, 3600, "Test entry")
+
+	worklog.AddEvent(event)
+	if len(worklog.events) != 1 {
+		t.Errorf("Expected 1 event, got %d", len(worklog.events))
+	}
+	if worklog.events[0].uuid != event.uuid {
+		t.Error("Expected added event to be in worklog.events")
+	}
+}
+
+func TestFindEventByUUID(t *testing.T) {
+	worklog := createTestWorklog()
+	event1 := NewEvent("task-1", time.Now(), time.Now(), 60, "Entry 1")
+	event2 := NewEvent("task-2", time.Now(), time.Now(), 120, "Entry 2")
+	worklog.AddEvent(event1)
+	worklog.AddEvent(event2)
+
+	found := worklog.FindEventByUUID(event1.uuid)
+	if found == nil || found.uuid != event1.uuid {
+		t.Error("Expected to find event1 by UUID")
+	}
+
+	found = worklog.FindEventByUUID(event2.uuid)
+	if found == nil || found.uuid != event2.uuid {
+		t.Error("Expected to find event2 by UUID")
+	}
+
+	found = worklog.FindEventByUUID("non-existent")
+	if found != nil {
+		t.Error("Expected nil for non-existent UUID")
+	}
+}
+
+func TestDeleteEvent(t *testing.T) {
+	worklog := createTestWorklog()
+	event := NewEvent("task-uuid", time.Now(), time.Now(), 60, "Test")
+	worklog.AddEvent(event)
+
+	err := worklog.DeleteEvent(event.uuid)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if len(worklog.events) != 0 {
+		t.Errorf("Expected 0 events after delete, got %d", len(worklog.events))
+	}
+
+	err = worklog.DeleteEvent("non-existent")
+	if err == nil {
+		t.Error("Expected error when deleting non-existent event")
+	}
+}
+
+func TestUpdateEventRecomputeDuration(t *testing.T) {
+	worklog := createTestWorklog()
+	start := time.Date(2023, 8, 14, 9, 0, 0, 0, time.Local)
+	end := time.Date(2023, 8, 14, 10, 0, 0, 0, time.Local)
+	event := NewEvent("task-uuid", start, end, 3600, "Test")
+	worklog.AddEvent(event)
+
+	newStart := time.Date(2023, 8, 14, 8, 0, 0, 0, time.Local)
+	err := worklog.UpdateEvent(event.uuid, EventUpdate{Dtstart: &newStart})
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	expectedDur := int(end.Sub(newStart).Seconds()) // 7200
+	if event.duration != expectedDur {
+		t.Errorf("Expected duration %d, got %d", expectedDur, event.duration)
+	}
+}
+
+func TestUpdateEventRecomputeEnd(t *testing.T) {
+	worklog := createTestWorklog()
+	start := time.Date(2023, 8, 14, 9, 0, 0, 0, time.Local)
+	end := time.Date(2023, 8, 14, 10, 0, 0, 0, time.Local)
+	event := NewEvent("task-uuid", start, end, 3600, "Test")
+	worklog.AddEvent(event)
+
+	newDur := 7200
+	err := worklog.UpdateEvent(event.uuid, EventUpdate{Duration: &newDur})
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	expectedEnd := start.Add(2 * time.Hour)
+	if !event.dtend.Equal(expectedEnd) {
+		t.Errorf("Expected end %v, got %v", expectedEnd, event.dtend)
+	}
+}
+
+func TestUpdateEventRecomputeStartAndDuration(t *testing.T) {
+	worklog := createTestWorklog()
+	start := time.Date(2023, 8, 14, 9, 0, 0, 0, time.Local)
+	end := time.Date(2023, 8, 14, 10, 0, 0, 0, time.Local)
+	event := NewEvent("task-uuid", start, end, 3600, "Test")
+	worklog.AddEvent(event)
+
+	newStart := time.Date(2023, 8, 14, 8, 0, 0, 0, time.Local)
+	newDur := 7200
+	err := worklog.UpdateEvent(event.uuid, EventUpdate{Dtstart: &newStart, Duration: &newDur})
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	expectedEnd := newStart.Add(2 * time.Hour)
+	if !event.dtend.Equal(expectedEnd) {
+		t.Errorf("Expected end %v, got %v", expectedEnd, event.dtend)
+	}
+}
+
+func TestUpdateEventRecomputeFromStartAndEnd(t *testing.T) {
+	worklog := createTestWorklog()
+	start := time.Date(2023, 8, 14, 9, 0, 0, 0, time.Local)
+	end := time.Date(2023, 8, 14, 10, 0, 0, 0, time.Local)
+	event := NewEvent("task-uuid", start, end, 3600, "Test")
+	worklog.AddEvent(event)
+
+	newStart := time.Date(2023, 8, 14, 7, 0, 0, 0, time.Local)
+	newEnd := time.Date(2023, 8, 14, 12, 0, 0, 0, time.Local)
+	err := worklog.UpdateEvent(event.uuid, EventUpdate{Dtstart: &newStart, Dtend: &newEnd})
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	expectedDur := int(newEnd.Sub(newStart).Seconds()) // 18000
+	if event.duration != expectedDur {
+		t.Errorf("Expected duration %d, got %d", expectedDur, event.duration)
+	}
+}
+
+func TestUpdateEventNotFound(t *testing.T) {
+	worklog := createTestWorklog()
+	newStart := time.Now()
+	err := worklog.UpdateEvent("non-existent", EventUpdate{Dtstart: &newStart})
+	if err == nil {
+		t.Error("Expected error when updating non-existent event")
+	}
+}
+
+func TestUpdateEventEndRecomputeDuration(t *testing.T) {
+	worklog := createTestWorklog()
+	start := time.Date(2023, 8, 14, 9, 0, 0, 0, time.Local)
+	end := time.Date(2023, 8, 14, 10, 0, 0, 0, time.Local)
+	event := NewEvent("task-uuid", start, end, 3600, "Test")
+	worklog.AddEvent(event)
+
+	newEnd := time.Date(2023, 8, 14, 11, 0, 0, 0, time.Local)
+	err := worklog.UpdateEvent(event.uuid, EventUpdate{Dtend: &newEnd})
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	expectedDur := int(newEnd.Sub(start).Seconds()) // 7200
+	if event.duration != expectedDur {
+		t.Errorf("Expected duration %d, got %d", expectedDur, event.duration)
+	}
+}

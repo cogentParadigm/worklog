@@ -19,7 +19,14 @@ Foundation for basic task management.
 
 Manual time entry and reporting before automation.
 
-- [ ] Add/edit time entries manually
+- [x] Add/edit time entries manually
+  - `time add` with `-task`, `-duration`, `-start`, `-note`
+  - `time list` with optional `-task` filter
+  - `time edit` with partial updates and auto-recompute
+  - `time delete` with confirmation
+  - Supports Go duration strings (`30m`, `1h30m`) and raw seconds
+  - Duration auto-recompute on start/end changes
+  - KTimeTracker-compatible VEVENT serialization (DTSTAMP, CATEGORIES, TRANSP)
 - [ ] Generate time reports and summaries (daily, weekly, by task)
 - [ ] Export reports to various formats (CSV, JSON, text)
 - [ ] Filter and query time entries by date range or task
