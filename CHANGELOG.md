@@ -1,3 +1,10 @@
+## [0.11.1](https://github.com/cogentParadigm/worklog/compare/v0.11.0...v0.11.1) (2026-05-06)
+
+
+### Bug Fixes
+
+* use COMMENT property for VEVENT comment and expose -comment flag ([9ee7268](https://github.com/cogentParadigm/worklog/commit/9ee726811e18f76b8eff41a4b2e8d7a071f8ed94))
+
 # [0.11.0](https://github.com/cogentParadigm/worklog/compare/v0.10.0...v0.11.0) (2026-05-06)
 
 
