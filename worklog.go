@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
 	ics "github.com/arran4/golang-ical"
@@ -292,9 +291,12 @@ func (worklog *Worklog) UpdateEvent(uuid string, update EventUpdate) error {
 	return nil
 }
 
-func (worklog *Worklog) Save() error {
+func (worklog *Worklog) Save(outputPath string) error {
 	cal := getCalendarForTasks(worklog.tasks, worklog.events, worklog.calendar)
-	outPath := strings.Replace(worklog.path, ".ics", "-output.ics", 1)
+	outPath := outputPath
+	if outPath == "" {
+		outPath = worklog.path
+	}
 	if err := saveCalendar(outPath, cal); err != nil {
 		return fmt.Errorf("save worklog: %w", err)
 	}

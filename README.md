@@ -36,14 +36,23 @@ go build .
 ## Quick Start
 
 ```bash
+# Set the default file path via environment variable
+export WORKLOG_FILE=~/my-tasks.ics
+
 # List all tasks (sorted alphabetically, showing hierarchy)
 worklog list
 
-# Create a new task
+# Create a new task (writes back to the same file by default)
 worklog create -name "Project Setup" -description "Initial configuration"
 
 # Create a subtask
 worklog create -name "Configure database" -parent <parent-uuid>
+
+# Use a specific file for a single command
+worklog list -file ~/other-tasks.ics
+
+# Save changes to a different file
+worklog create -file ~/source.ics -output ~/backup.ics -name "Backup task"
 ```
 
 ## Usage
@@ -52,8 +61,12 @@ worklog create -name "Configure database" -parent <parent-uuid>
 
 Lists all tasks sorted alphabetically by name, displaying the parent/child hierarchy.
 
+**Flags:**
+- `-file` — Path to the `.ics` file (overrides `WORKLOG_FILE` environment variable).
+
 ```bash
 worklog list
+worklog list -file ~/my-tasks.ics
 ```
 
 ### `create`
@@ -61,6 +74,8 @@ worklog list
 Creates a new task with an auto-generated UUID.
 
 **Flags:**
+- `-file` — Path to the `.ics` file (overrides `WORKLOG_FILE` environment variable).
+- `-output` — Output path for the updated `.ics` file. If omitted, writes back to the input file.
 - `-name` — The name/summary of the task.
 - `-description` — Additional detailed description.
 - `-parent` — UUID of the parent task under which to create this task (optional).
@@ -68,7 +83,8 @@ Creates a new task with an auto-generated UUID.
 **Examples:**
 ```bash
 worklog create -name "Project Setup" -description "Initial configuration"
-worklog create -name "Configure database" -parent <parent-uuid>
+worklog create -file ~/tasks.ics -name "Configure database" -parent <parent-uuid>
+worklog create -file ~/source.ics -output ~/backup.ics -name "Backup task"
 ```
 
 ### `update`
@@ -76,6 +92,8 @@ worklog create -name "Configure database" -parent <parent-uuid>
 Updates an existing task. Only the fields you provide are changed.
 
 **Flags:**
+- `-file` — Path to the `.ics` file (overrides `WORKLOG_FILE` environment variable).
+- `-output` — Output path for the updated `.ics` file. If omitted, writes back to the input file.
 - `-uuid` — The UUID of the task to update (required).
 - `-name` — New name for the task.
 - `-description` — New description for the task.
@@ -86,7 +104,7 @@ Cycle detection prevents a task from being set as its own parent or moved under 
 **Examples:**
 ```bash
 worklog update -uuid <uuid> -name "Updated Name"
-worklog update -uuid <uuid> -description "New details"
+worklog update -file ~/tasks.ics -uuid <uuid> -description "New details"
 worklog update -uuid <uuid> -parent ""
 ```
 
@@ -95,6 +113,8 @@ worklog update -uuid <uuid> -parent ""
 Deletes a task and **all of its subtasks recursively**.
 
 **Flags:**
+- `-file` — Path to the `.ics` file (overrides `WORKLOG_FILE` environment variable).
+- `-output` — Output path for the updated `.ics` file. If omitted, writes back to the input file.
 - `-uuid` — The UUID of the task to delete (required).
 - `-force` — Delete without interactive confirmation.
 
@@ -103,7 +123,7 @@ Without `-force`, you will be prompted to confirm the deletion and shown the tot
 **Examples:**
 ```bash
 worklog delete -uuid <uuid>
-worklog delete -uuid <uuid> -force
+worklog delete -file ~/tasks.ics -uuid <uuid> -force
 ```
 
 ### `time add`
@@ -111,6 +131,8 @@ worklog delete -uuid <uuid> -force
 Adds a manual time entry for a task. If `-start` is omitted, the start time is computed as `now - duration`, matching KTimeTracker behavior.
 
 **Flags:**
+- `-file` — Path to the `.ics` file (overrides `WORKLOG_FILE` environment variable).
+- `-output` — Output path for the updated `.ics` file. If omitted, writes back to the input file.
 - `-task` — UUID of the task to log time against (required).
 - `-duration` — Duration to log. Accepts Go duration strings (`30m`, `1h30m`, `3600s`) or raw seconds (required).
 - `-start` — Start datetime. Optional formats: `2023-08-14T09:00:00`, `2023-08-14 09:00:00`, `09:00:00`, `09:00` (defaults to now - duration).
@@ -122,7 +144,7 @@ Adds a manual time entry for a task. If `-start` is omitted, the start time is c
 worklog time add -task <uuid> -duration 30m
 
 # Log 1 hour starting at a specific time
-worklog time add -task <uuid> -duration 1h -start "2023-08-14 09:00:00"
+worklog time add -file ~/tasks.ics -task <uuid> -duration 1h -start "2023-08-14 09:00:00"
 
 # Log with a custom note
 worklog time add -task <uuid> -duration 3600s -note "Fixed authentication bug"
@@ -133,12 +155,13 @@ worklog time add -task <uuid> -duration 3600s -note "Fixed authentication bug"
 Lists time entries sorted by start time (most recent first). Optionally filter to a specific task.
 
 **Flags:**
+- `-file` — Path to the `.ics` file (overrides `WORKLOG_FILE` environment variable).
 - `-task` — Filter to a specific task UUID (optional).
 
 **Example:**
 ```bash
 worklog time list
-worklog time list -task <uuid>
+worklog time list -file ~/tasks.ics -task <uuid>
 ```
 
 ### `time edit`
@@ -146,6 +169,8 @@ worklog time list -task <uuid>
 Edits an existing time entry. Only provided fields are changed. Duration is automatically recomputed when start or end is modified.
 
 **Flags:**
+- `-file` — Path to the `.ics` file (overrides `WORKLOG_FILE` environment variable).
+- `-output` — Output path for the updated `.ics` file. If omitted, writes back to the input file.
 - `-uuid` — UUID of the time entry to edit (required).
 - `-start` — New start time.
 - `-end` — New end time.
@@ -155,7 +180,7 @@ Edits an existing time entry. Only provided fields are changed. Duration is auto
 **Examples:**
 ```bash
 worklog time edit -uuid <event-uuid> -note "Updated description"
-worklog time edit -uuid <event-uuid> -start "2023-08-14 10:00:00" -end "2023-08-14 11:30:00"
+worklog time edit -file ~/tasks.ics -uuid <event-uuid> -start "2023-08-14 10:00:00" -end "2023-08-14 11:30:00"
 ```
 
 ### `time delete`
@@ -163,13 +188,15 @@ worklog time edit -uuid <event-uuid> -start "2023-08-14 10:00:00" -end "2023-08-
 Deletes a time entry.
 
 **Flags:**
+- `-file` — Path to the `.ics` file (overrides `WORKLOG_FILE` environment variable).
+- `-output` — Output path for the updated `.ics` file. If omitted, writes back to the input file.
 - `-uuid` — UUID of the time entry to delete (required).
 - `-force` — Delete without interactive confirmation.
 
 **Example:**
 ```bash
 worklog time delete -uuid <event-uuid>
-worklog time delete -uuid <event-uuid> -force
+worklog time delete -file ~/tasks.ics -uuid <event-uuid> -force
 ```
 
 ### `report timesheet`
@@ -177,6 +204,7 @@ worklog time delete -uuid <event-uuid> -force
 Generates a timesheet showing time logged per task per day. Defaults to the current week (Monday–Sunday). Only tasks with direct time entries in the selected range are shown.
 
 **Flags:**
+- `-file` — Path to the `.ics` file (overrides `WORKLOG_FILE` environment variable).
 - `-from` — Start date (`YYYY-MM-DD`, defaults to Monday of current week).
 - `-to` — End date (`YYYY-MM-DD`, defaults to Sunday of current week).
 - `-all` — Use the full date range of all events in the file (ignores `-from`/`-to`).
@@ -190,7 +218,7 @@ Generates a timesheet showing time logged per task per day. Defaults to the curr
 worklog report timesheet
 
 # Custom date range
-worklog report timesheet -from 2023-08-01 -to 2023-08-15
+worklog report timesheet -file ~/tasks.ics -from 2023-08-01 -to 2023-08-15
 
 # CSV export with decimal hours
 worklog report timesheet -format csv -decimal
@@ -201,7 +229,13 @@ worklog report timesheet -all -hide-empty
 
 ## File I/O
 
-The tool currently reads from `testdata/example.ics` and writes to `testdata/example-output.ics`. This path is temporary and will become configurable in a future release.
+Worklog reads and writes standard `.ics` files. By default, modifying commands save **in-place** back to the input file. Use the `-output` flag to write to a different path instead.
+
+The input file is resolved in this order:
+1. `-file` flag on the command.
+2. `WORKLOG_FILE` environment variable.
+
+If neither is set, the command exits with an error telling you to use one of the two options.
 
 All existing VEVENT components (KTimeTracker timer sessions), calendar-level properties, and any unknown iCalendar components are preserved exactly across saves.
 

@@ -2,14 +2,6 @@
 
 This document tracks known issues identified during code review.
 
-### Hardcoded ICS file paths
-**Priority:** High
-**Impact:** The compiled binary is unusable for real data without recompilation.
-
-- `main.go` hardcodes `testdata/example.ics` as the input file.
-- `Save()` constructs output path with `strings.Replace(path, ".ics", "-output.ics", 1)`, producing `example-output.ics`.
-- A normal workflow should write back to the same file (in-place save), but we need a strategy for how the user specifies the input file: CLI flag, env var, config file, default path, or KTimeTracker file discovery.
-
 ### No way to discover task UUIDs from CLI
 **Priority:** High
 **Impact:** Users cannot `update`, `delete`, `create -parent`, or `time add` without manually reading the raw `.ics` file.
