@@ -52,7 +52,13 @@ func run(args []string) error {
 
 	switch args[0] {
 	case "list":
-		printTasks(worklog.tasks, "")
+		totals := worklog.ComputeTaskTotals()
+		nameWidth := maxTaskLineWidth(worklog.tasks, "")
+		if nameWidth < 4 {
+			nameWidth = 4
+		}
+		fmt.Printf("%-*s %s\n", nameWidth, "Name", "Total")
+		printTasks(worklog.tasks, "", totals, nameWidth)
 	case "create":
 		createCommand.Parse(args[1:])
 		task := worklog.NewTask(*createName)
@@ -327,18 +333,62 @@ func run(args []string) error {
 	return nil
 }
 
-func printTasks(tasks []*Task, prefix string) {
+func formatDuration(seconds int) string {
+	if seconds <= 0 {
+		return "-"
+	}
+	h := seconds / 3600
+	m := (seconds % 3600) / 60
+	s := seconds % 60
+
+	var parts []string
+	if h > 0 {
+		parts = append(parts, fmt.Sprintf("%dh", h))
+	}
+	if m > 0 {
+		parts = append(parts, fmt.Sprintf("%dm", m))
+	}
+	if s > 0 && h == 0 {
+		parts = append(parts, fmt.Sprintf("%ds", s))
+	}
+	return strings.Join(parts, " ")
+}
+
+func maxTaskLineWidth(tasks []*Task, prefix string) int {
+	width := 0
+	for _, task := range tasks {
+		separator := "- "
+		if prefix != "" {
+			separator = "| - "
+		}
+		lineLen := len(prefix) + len(separator) + len(task.name)
+		if lineLen > width {
+			width = lineLen
+		}
+		if len(task.children) > 0 {
+			childWidth := maxTaskLineWidth(task.children, "  "+prefix)
+			if childWidth > width {
+				width = childWidth
+			}
+		}
+	}
+	return width
+}
+
+func printTasks(tasks []*Task, prefix string, totals map[string]int, nameWidth int) {
 	sort.Slice(tasks, func(i, j int) bool {
 		return tasks[i].name < tasks[j].name
 	})
 	for _, task := range tasks {
 		separator := "- "
 		if prefix != "" {
-			separator = "|" + separator
+			separator = "| - "
 		}
-		fmt.Printf("%v%v%v\n", prefix, separator, task.name)
+		name := prefix + separator + task.name
+		dur := formatDuration(totals[task.uuid])
+		fmt.Printf("%-*s %s\n", nameWidth, name, dur)
 		if len(task.children) > 0 {
-			printTasks(task.children, "  "+prefix)
+			printTasks(task.children, "  "+prefix, totals, nameWidth)
 		}
 	}
 }

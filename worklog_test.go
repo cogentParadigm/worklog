@@ -768,6 +768,92 @@ func TestCreateTaskWithParentRemovesFromRoot(t *testing.T) {
 	}
 }
 
+func TestComputeTaskTotals(t *testing.T) {
+	worklog := createTestWorklog()
+
+	parent := NewTask("parent")
+	child1 := NewTask("child1")
+	child2 := NewTask("child2")
+	grandchild := NewTask("grandchild")
+
+	worklog.tasks = append(worklog.tasks, parent)
+	parent.children = append(parent.children, child1, child2)
+	child1.parent = parent
+	child2.parent = parent
+	child1.children = append(child1.children, grandchild)
+	grandchild.parent = child1
+
+	worklog.events = append(worklog.events, &Event{
+		uuid: "ev-parent", relatedTo: parent.uuid, duration: 60,
+	})
+	worklog.events = append(worklog.events, &Event{
+		uuid: "ev-child1", relatedTo: child1.uuid, duration: 120,
+	})
+	worklog.events = append(worklog.events, &Event{
+		uuid: "ev-child2", relatedTo: child2.uuid, duration: 180,
+	})
+	worklog.events = append(worklog.events, &Event{
+		uuid: "ev-grandchild", relatedTo: grandchild.uuid, duration: 240,
+	})
+
+	totals := worklog.ComputeTaskTotals()
+
+	if totals[parent.uuid] != 600 {
+		t.Errorf("Expected parent total 600, got %d", totals[parent.uuid])
+	}
+	if totals[child1.uuid] != 360 {
+		t.Errorf("Expected child1 total 360, got %d", totals[child1.uuid])
+	}
+	if totals[child2.uuid] != 180 {
+		t.Errorf("Expected child2 total 180, got %d", totals[child2.uuid])
+	}
+	if totals[grandchild.uuid] != 240 {
+		t.Errorf("Expected grandchild total 240, got %d", totals[grandchild.uuid])
+	}
+}
+
+func TestFormatDuration(t *testing.T) {
+	tests := []struct {
+		seconds  int
+		expected string
+	}{
+		{0, "-"},
+		{-1, "-"},
+		{30, "30s"},
+		{60, "1m"},
+		{90, "1m 30s"},
+		{3600, "1h"},
+		{3660, "1h 1m"},
+		{5400, "1h 30m"},
+		{7200, "2h"},
+		{86400, "24h"},
+	}
+
+	for _, tt := range tests {
+		result := formatDuration(tt.seconds)
+		if result != tt.expected {
+			t.Errorf("formatDuration(%d) = %q, want %q", tt.seconds, result, tt.expected)
+		}
+	}
+}
+
+func TestMaxTaskLineWidth(t *testing.T) {
+	parent := NewTask("Parent Task")
+	child := NewTask("Child Task with longer name")
+	grandchild := NewTask("G")
+
+	parent.children = append(parent.children, child)
+	child.parent = parent
+	child.children = append(child.children, grandchild)
+	grandchild.parent = child
+
+	width := maxTaskLineWidth([]*Task{parent}, "")
+	expected := len("  | - Child Task with longer name")
+	if width != expected {
+		t.Errorf("Expected max width %d, got %d", expected, width)
+	}
+}
+
 func TestAddEvent(t *testing.T) {
 	worklog := createTestWorklog()
 	start := time.Date(2023, 8, 14, 9, 0, 0, 0, time.Local)
