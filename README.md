@@ -40,24 +40,24 @@ go build .
 export WORKLOG_FILE=~/my-tasks.ics
 
 # List all tasks (sorted alphabetically, showing hierarchy)
-worklog list
+worklog task list
 
 # Create a new task (writes back to the same file by default)
-worklog create -name "Project Setup" -description "Initial configuration"
+worklog task create -name "Project Setup" -description "Initial configuration"
 
 # Create a subtask
-worklog create -name "Configure database" -parent <parent-uuid>
+worklog task create -name "Configure database" -parent <parent-uuid>
 
 # Use a specific file for a single command
-worklog list -file ~/other-tasks.ics
+worklog task list -file ~/other-tasks.ics
 
 # Save changes to a different file
-worklog create -file ~/source.ics -output ~/backup.ics -name "Backup task"
+worklog task create -file ~/source.ics -output ~/backup.ics -name "Backup task"
 ```
 
 ## Usage
 
-### `list`
+### `task list`
 
 Lists all tasks sorted alphabetically by name, displaying the parent/child hierarchy, task UUID, direct duration, and rolled-up total duration.
 
@@ -65,11 +65,11 @@ Lists all tasks sorted alphabetically by name, displaying the parent/child hiera
 - `-file` — Path to the `.ics` file (overrides `WORKLOG_FILE` environment variable).
 
 ```bash
-worklog list
-worklog list -file ~/my-tasks.ics
+worklog task list
+worklog task list -file ~/my-tasks.ics
 ```
 
-### `create`
+### `task create`
 
 Creates a new task with an auto-generated UUID.
 
@@ -82,12 +82,12 @@ Creates a new task with an auto-generated UUID.
 
 **Examples:**
 ```bash
-worklog create -name "Project Setup" -description "Initial configuration"
-worklog create -file ~/tasks.ics -name "Configure database" -parent <parent-uuid>
-worklog create -file ~/source.ics -output ~/backup.ics -name "Backup task"
+worklog task create -name "Project Setup" -description "Initial configuration"
+worklog task create -file ~/tasks.ics -name "Configure database" -parent <parent-uuid>
+worklog task create -file ~/source.ics -output ~/backup.ics -name "Backup task"
 ```
 
-### `update`
+### `task update`
 
 Updates an existing task. Only the fields you provide are changed.
 
@@ -103,12 +103,12 @@ Cycle detection prevents a task from being set as its own parent or moved under 
 
 **Examples:**
 ```bash
-worklog update -uuid <uuid> -name "Updated Name"
-worklog update -file ~/tasks.ics -uuid <uuid> -description "New details"
-worklog update -uuid <uuid> -parent ""
+worklog task update -uuid <uuid> -name "Updated Name"
+worklog task update -file ~/tasks.ics -uuid <uuid> -description "New details"
+worklog task update -uuid <uuid> -parent ""
 ```
 
-### `delete`
+### `task delete`
 
 Deletes a task and **all of its subtasks recursively**.
 
@@ -122,8 +122,8 @@ Without `-force`, you will be prompted to confirm the deletion and shown the tot
 
 **Examples:**
 ```bash
-worklog delete -uuid <uuid>
-worklog delete -file ~/tasks.ics -uuid <uuid> -force
+worklog task delete -uuid <uuid>
+worklog task delete -file ~/tasks.ics -uuid <uuid> -force
 ```
 
 ### `time add`

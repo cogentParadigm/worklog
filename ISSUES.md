@@ -2,14 +2,6 @@
 
 This document tracks known issues identified during code review.
 
-### Inconsistent CLI command hierarchy
-**Priority:** Medium
-**Impact:** Mental model is fragmented; `time` and `report` are namespaces but task CRUD is at root.
-
-- Current: `worklog list`, `worklog create`, `worklog update`, `worklog delete`
-- Should be: `worklog task list`, `worklog task create`, `worklog task update`, `worklog task delete`
-- This is a **breaking change**.
-
 ### No `-h` / `--help` on subcommands
 **Priority:** Medium
 **Impact:** Poor CLI discoverability.
