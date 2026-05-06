@@ -20,7 +20,7 @@ Foundation for basic task management.
 Manual time entry and reporting before automation.
 
 - [x] Add/edit time entries manually
-  - `time add` with `-task`, `-duration`, `-start`, `-note`
+  - `time add` with `-task`, `-duration`, `-start`, `-comment`
   - `time list` with optional `-task` filter
   - `time edit` with partial updates and auto-recompute
   - `time delete` with confirmation

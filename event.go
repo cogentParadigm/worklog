@@ -9,19 +9,19 @@ import (
 )
 
 type Event struct {
-	uuid        string
-	summary     string
-	description string
-	relatedTo   string
-	dtstart     time.Time
-	dtend       time.Time
+	uuid       string
+	summary    string
+	comment    string
+	relatedTo  string
+	dtstart    time.Time
+	dtend      time.Time
 	dtstartProp *ics.IANAProperty // preserves original DTSTART formatting/TZID
 	dtendProp   *ics.IANAProperty // preserves original DTEND formatting/TZID
 	duration    int
 	properties  []ics.IANAProperty
 }
 
-func NewEvent(taskUUID string, start, end time.Time, duration int, note string) *Event {
+func NewEvent(taskUUID string, start, end time.Time, duration int, note, comment string) *Event {
 	now := time.Now().UTC()
 	return &Event{
 		uuid:      uuid.New().String(),
@@ -30,6 +30,7 @@ func NewEvent(taskUUID string, start, end time.Time, duration int, note string) 
 		dtend:     end,
 		duration:  duration,
 		summary:   note,
+		comment:   comment,
 		properties: []ics.IANAProperty{
 			{BaseProperty: ics.BaseProperty{IANAToken: "DTSTAMP", Value: now.Format("20060102T150405Z")}},
 			{BaseProperty: ics.BaseProperty{IANAToken: "CREATED", Value: now.Format("20060102T150405Z")}},
@@ -59,10 +60,10 @@ func (event *Event) updateLastModified() {
 
 func makeEventForVEvent(ve *ics.VEvent) Event {
 	event := Event{
-		uuid:        getEventProperty(ve, ics.ComponentPropertyUniqueId),
-		summary:     getEventProperty(ve, ics.ComponentPropertySummary),
-		description: getEventProperty(ve, ics.ComponentPropertyDescription),
-		relatedTo:   getEventProperty(ve, "RELATED-TO"),
+		uuid:      getEventProperty(ve, ics.ComponentPropertyUniqueId),
+		summary:   getEventProperty(ve, ics.ComponentPropertySummary),
+		comment:   getEventProperty(ve, ics.ComponentProperty(ics.PropertyComment)),
+		relatedTo: getEventProperty(ve, "RELATED-TO"),
 	}
 
 	// Try to parse dtstart/dtend as time.Time for Phase 2/4 operations
@@ -108,10 +109,10 @@ func makeVEventForEvent(event *Event) ics.VEvent {
 		case string(ics.ComponentPropertySummary):
 			ve.SetProperty(ics.ComponentPropertySummary, event.summary)
 			emitted["SUMMARY"] = true
-		case string(ics.ComponentPropertyDescription):
-			if event.description != "" {
-				ve.SetProperty(ics.ComponentPropertyDescription, event.description)
-				emitted["DESCRIPTION"] = true
+		case string(ics.ComponentProperty(ics.PropertyComment)):
+			if event.comment != "" {
+				ve.SetProperty(ics.ComponentProperty(ics.PropertyComment), event.comment)
+				emitted["COMMENT"] = true
 			}
 		case "RELATED-TO":
 			if event.relatedTo != "" {
@@ -148,8 +149,8 @@ func makeVEventForEvent(event *Event) ics.VEvent {
 	if !emitted["SUMMARY"] {
 		ve.SetProperty(ics.ComponentPropertySummary, event.summary)
 	}
-	if !emitted["DESCRIPTION"] && event.description != "" {
-		ve.SetProperty(ics.ComponentPropertyDescription, event.description)
+	if !emitted["COMMENT"] && event.comment != "" {
+		ve.SetProperty(ics.ComponentProperty(ics.PropertyComment), event.comment)
 	}
 	if !emitted["RELATED-TO"] && event.relatedTo != "" {
 		ve.SetProperty("RELATED-TO", event.relatedTo)

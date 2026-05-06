@@ -124,8 +124,8 @@ func run(args []string) error {
 			timeAddTask := timeAddCommand.String("task", "", "UUID of the task to log time against (required)")
 			timeAddDuration := timeAddCommand.String("duration", "", "Duration to log (e.g., 30m, 1h30m, 3600s) (required)")
 			timeAddStart := timeAddCommand.String("start", "", "Start time (optional, defaults to now-duration)")
-			timeAddNote := timeAddCommand.String("note", "", "Note for the time entry (optional, defaults to task name)")
-			configureFlagSet(timeAddCommand, "Add a manual time entry for a task. If -start is omitted, the start time is computed as now - duration.", "  worklog time add -task <uuid> -duration 30m\n  worklog time add -task <uuid> -duration 1h -start \"2023-08-14 09:00:00\"\n  worklog time add -task <uuid> -duration 3600s -note \"Fixed bug\"")
+			timeAddComment := timeAddCommand.String("comment", "", "Comment for the time entry (optional)")
+			configureFlagSet(timeAddCommand, "Add a manual time entry for a task. If -start is omitted, the start time is computed as now - duration.", "  worklog time add -task <uuid> -duration 30m\n  worklog time add -task <uuid> -duration 1h -start \"2023-08-14 09:00:00\"\n  worklog time add -task <uuid> -duration 3600s -comment \"Reviewed with team\"")
 			if err := timeAddCommand.Parse(timeArgs); err != nil {
 				return err
 			}
@@ -168,12 +168,7 @@ func run(args []string) error {
 				start = end.Add(-time.Duration(duration) * time.Second)
 			}
 
-			note := *timeAddNote
-			if note == "" {
-				note = task.name
-			}
-
-			event := NewEvent(*timeAddTask, start, end, duration, note)
+			event := NewEvent(*timeAddTask, start, end, duration, task.name, *timeAddComment)
 			worklog.AddEvent(event)
 			if err := worklog.Save(*timeAddOutput); err != nil {
 				return err
@@ -233,8 +228,8 @@ func run(args []string) error {
 			timeEditStart := timeEditCommand.String("start", "", "New start time")
 			timeEditEnd := timeEditCommand.String("end", "", "New end time")
 			timeEditDuration := timeEditCommand.String("duration", "", "New duration (e.g., 30m, 1h30m)")
-			timeEditNote := timeEditCommand.String("note", "", "New note")
-			configureFlagSet(timeEditCommand, "Edit an existing time entry. Only provided fields are changed. Duration is automatically recomputed when start or end is modified.", "  worklog time edit -uuid <event-uuid> -note \"Updated\"\n  worklog time edit -uuid <event-uuid> -start \"2023-08-14 10:00:00\" -end \"2023-08-14 11:30:00\"")
+			timeEditComment := timeEditCommand.String("comment", "", "New comment")
+			configureFlagSet(timeEditCommand, "Edit an existing time entry. Only provided fields are changed. Duration is automatically recomputed when start or end is modified.", "  worklog time edit -uuid <event-uuid> -comment \"Updated\"\n  worklog time edit -uuid <event-uuid> -start \"2023-08-14 10:00:00\" -end \"2023-08-14 11:30:00\"")
 			if err := timeEditCommand.Parse(timeArgs); err != nil {
 				return err
 			}
@@ -251,8 +246,8 @@ func run(args []string) error {
 			update := EventUpdate{}
 			timeEditCommand.Visit(func(f *flag.Flag) {
 				switch f.Name {
-				case "note":
-					update.Summary = timeEditNote
+				case "comment":
+					update.Comment = timeEditComment
 				}
 			})
 

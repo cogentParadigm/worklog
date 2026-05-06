@@ -645,7 +645,7 @@ func TestEventModelParsesProperties(t *testing.T) {
 	ve := ics.VEvent{}
 	ve.SetProperty(ics.ComponentPropertyUniqueId, "event-uuid-1")
 	ve.SetProperty(ics.ComponentPropertySummary, "Event Summary")
-	ve.SetProperty(ics.ComponentPropertyDescription, "Event Description")
+	ve.SetProperty(ics.ComponentProperty(ics.PropertyComment), "Event Comment")
 	ve.SetProperty("RELATED-TO", "task-uuid-1")
 	ve.SetProperty("X-KDE-ktimetracker-duration", "3600")
 
@@ -662,8 +662,8 @@ func TestEventModelParsesProperties(t *testing.T) {
 	if event.summary != "Event Summary" {
 		t.Errorf("Expected summary 'Event Summary', got '%s'", event.summary)
 	}
-	if event.description != "Event Description" {
-		t.Errorf("Expected description 'Event Description', got '%s'", event.description)
+	if event.comment != "Event Comment" {
+		t.Errorf("Expected comment 'Event Comment', got '%s'", event.comment)
 	}
 	if event.relatedTo != "task-uuid-1" {
 		t.Errorf("Expected relatedTo 'task-uuid-1', got '%s'", event.relatedTo)
@@ -689,7 +689,7 @@ func TestEventRoundTrip(t *testing.T) {
 	ve := ics.VEvent{}
 	ve.SetProperty(ics.ComponentPropertyUniqueId, "event-uuid-1")
 	ve.SetProperty(ics.ComponentPropertySummary, "Event Summary")
-	ve.SetProperty(ics.ComponentPropertyDescription, "Event Description")
+	ve.SetProperty(ics.ComponentProperty(ics.PropertyComment), "Event Comment")
 	ve.SetProperty("RELATED-TO", "task-uuid-1")
 	ve.SetProperty("X-KDE-ktimetracker-duration", "3600")
 
@@ -707,8 +707,8 @@ func TestEventRoundTrip(t *testing.T) {
 	if getEventProperty(&outVe, ics.ComponentPropertySummary) != "Event Summary" {
 		t.Errorf("Expected summary 'Event Summary', got '%s'", getEventProperty(&outVe, ics.ComponentPropertySummary))
 	}
-	if getEventProperty(&outVe, ics.ComponentPropertyDescription) != "Event Description" {
-		t.Errorf("Expected description 'Event Description', got '%s'", getEventProperty(&outVe, ics.ComponentPropertyDescription))
+	if getEventProperty(&outVe, ics.ComponentProperty(ics.PropertyComment)) != "Event Comment" {
+		t.Errorf("Expected comment 'Event Comment', got '%s'", getEventProperty(&outVe, ics.ComponentProperty(ics.PropertyComment)))
 	}
 	if getEventProperty(&outVe, "RELATED-TO") != "task-uuid-1" {
 		t.Errorf("Expected relatedTo 'task-uuid-1', got '%s'", getEventProperty(&outVe, "RELATED-TO"))
@@ -874,7 +874,7 @@ func TestAddEvent(t *testing.T) {
 	worklog := createTestWorklog()
 	start := time.Date(2023, 8, 14, 9, 0, 0, 0, time.Local)
 	end := time.Date(2023, 8, 14, 10, 0, 0, 0, time.Local)
-	event := NewEvent("task-uuid", start, end, 3600, "Test entry")
+	event := NewEvent("task-uuid", start, end, 3600, "Test entry", "")
 
 	worklog.AddEvent(event)
 	if len(worklog.events) != 1 {
@@ -887,8 +887,8 @@ func TestAddEvent(t *testing.T) {
 
 func TestFindEventByUUID(t *testing.T) {
 	worklog := createTestWorklog()
-	event1 := NewEvent("task-1", time.Now(), time.Now(), 60, "Entry 1")
-	event2 := NewEvent("task-2", time.Now(), time.Now(), 120, "Entry 2")
+	event1 := NewEvent("task-1", time.Now(), time.Now(), 60, "Entry 1", "")
+	event2 := NewEvent("task-2", time.Now(), time.Now(), 120, "Entry 2", "")
 	worklog.AddEvent(event1)
 	worklog.AddEvent(event2)
 
@@ -910,7 +910,7 @@ func TestFindEventByUUID(t *testing.T) {
 
 func TestDeleteEvent(t *testing.T) {
 	worklog := createTestWorklog()
-	event := NewEvent("task-uuid", time.Now(), time.Now(), 60, "Test")
+	event := NewEvent("task-uuid", time.Now(), time.Now(), 60, "Test", "")
 	worklog.AddEvent(event)
 
 	err := worklog.DeleteEvent(event.uuid)
@@ -931,7 +931,7 @@ func TestUpdateEventRecomputeDuration(t *testing.T) {
 	worklog := createTestWorklog()
 	start := time.Date(2023, 8, 14, 9, 0, 0, 0, time.Local)
 	end := time.Date(2023, 8, 14, 10, 0, 0, 0, time.Local)
-	event := NewEvent("task-uuid", start, end, 3600, "Test")
+	event := NewEvent("task-uuid", start, end, 3600, "Test", "")
 	worklog.AddEvent(event)
 
 	newStart := time.Date(2023, 8, 14, 8, 0, 0, 0, time.Local)
@@ -950,7 +950,7 @@ func TestUpdateEventRecomputeEnd(t *testing.T) {
 	worklog := createTestWorklog()
 	start := time.Date(2023, 8, 14, 9, 0, 0, 0, time.Local)
 	end := time.Date(2023, 8, 14, 10, 0, 0, 0, time.Local)
-	event := NewEvent("task-uuid", start, end, 3600, "Test")
+	event := NewEvent("task-uuid", start, end, 3600, "Test", "")
 	worklog.AddEvent(event)
 
 	newDur := 7200
@@ -969,7 +969,7 @@ func TestUpdateEventRecomputeStartAndDuration(t *testing.T) {
 	worklog := createTestWorklog()
 	start := time.Date(2023, 8, 14, 9, 0, 0, 0, time.Local)
 	end := time.Date(2023, 8, 14, 10, 0, 0, 0, time.Local)
-	event := NewEvent("task-uuid", start, end, 3600, "Test")
+	event := NewEvent("task-uuid", start, end, 3600, "Test", "")
 	worklog.AddEvent(event)
 
 	newStart := time.Date(2023, 8, 14, 8, 0, 0, 0, time.Local)
@@ -989,7 +989,7 @@ func TestUpdateEventRecomputeFromStartAndEnd(t *testing.T) {
 	worklog := createTestWorklog()
 	start := time.Date(2023, 8, 14, 9, 0, 0, 0, time.Local)
 	end := time.Date(2023, 8, 14, 10, 0, 0, 0, time.Local)
-	event := NewEvent("task-uuid", start, end, 3600, "Test")
+	event := NewEvent("task-uuid", start, end, 3600, "Test", "")
 	worklog.AddEvent(event)
 
 	newStart := time.Date(2023, 8, 14, 7, 0, 0, 0, time.Local)
@@ -1018,7 +1018,7 @@ func TestUpdateEventEndRecomputeDuration(t *testing.T) {
 	worklog := createTestWorklog()
 	start := time.Date(2023, 8, 14, 9, 0, 0, 0, time.Local)
 	end := time.Date(2023, 8, 14, 10, 0, 0, 0, time.Local)
-	event := NewEvent("task-uuid", start, end, 3600, "Test")
+	event := NewEvent("task-uuid", start, end, 3600, "Test", "")
 	worklog.AddEvent(event)
 
 	newEnd := time.Date(2023, 8, 14, 11, 0, 0, 0, time.Local)

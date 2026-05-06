@@ -136,7 +136,7 @@ Adds a manual time entry for a task. If `-start` is omitted, the start time is c
 - `-task` — UUID of the task to log time against (required).
 - `-duration` — Duration to log. Accepts Go duration strings (`30m`, `1h30m`, `3600s`) or raw seconds (required).
 - `-start` — Start datetime. Optional formats: `2023-08-14T09:00:00`, `2023-08-14 09:00:00`, `09:00:00`, `09:00` (defaults to now - duration).
-- `-note` — Note for the time entry (optional, defaults to the task's name).
+- `-comment` — Comment for the time entry (optional).
 
 **Examples:**
 ```bash
@@ -146,8 +146,8 @@ worklog time add -task <uuid> -duration 30m
 # Log 1 hour starting at a specific time
 worklog time add -file ~/tasks.ics -task <uuid> -duration 1h -start "2023-08-14 09:00:00"
 
-# Log with a custom note
-worklog time add -task <uuid> -duration 3600s -note "Fixed authentication bug"
+# Log with a comment
+worklog time add -task <uuid> -duration 3600s -comment "Reviewed with team"
 ```
 
 ### `time list`
@@ -175,11 +175,11 @@ Edits an existing time entry. Only provided fields are changed. Duration is auto
 - `-start` — New start time.
 - `-end` — New end time.
 - `-duration` — New duration (e.g., `30m`, `1h30m`).
-- `-note` — New note.
+- `-comment` — New comment.
 
 **Examples:**
 ```bash
-worklog time edit -uuid <event-uuid> -note "Updated description"
+worklog time edit -uuid <event-uuid> -comment "Updated comment"
 worklog time edit -file ~/tasks.ics -uuid <event-uuid> -start "2023-08-14 10:00:00" -end "2023-08-14 11:30:00"
 ```
 

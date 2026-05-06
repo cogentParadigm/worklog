@@ -54,13 +54,13 @@ func createTestIcsCalendar() *ics.Calendar {
 	event1.SetStartAt(startTime)
 	event1.SetEndAt(endTime)
 	event1.SetSummary("Event 1")
-	event1.SetDescription("This is the first event")
+	event1.SetProperty(ics.ComponentProperty(ics.PropertyComment), "This is the first event")
 	event1.SetProperty("RELATED-TO", todo1.GetProperty(ics.ComponentPropertyUniqueId).Value)
 	event2 := cal.AddEvent("fdde4f82-1109-4fc6-80e4-42b40e000076")
 	event2.SetStartAt(startTime)
 	event2.SetEndAt(endTime)
 	event2.SetSummary("Event 2")
-	event2.SetDescription("This is the second event")
+	event2.SetProperty(ics.ComponentProperty(ics.PropertyComment), "This is the second event")
 	event2.SetProperty("RELATED-TO", todo2.GetProperty(ics.ComponentPropertyUniqueId).Value)
 	return cal
 }

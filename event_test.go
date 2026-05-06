@@ -10,7 +10,7 @@ import (
 func TestNewEvent(t *testing.T) {
 	start := time.Date(2023, 8, 14, 9, 0, 0, 0, time.Local)
 	end := time.Date(2023, 8, 14, 10, 0, 0, 0, time.Local)
-	event := NewEvent("task-uuid", start, end, 3600, "Worked on bug fix")
+	event := NewEvent("task-uuid", start, end, 3600, "Worked on bug fix", "bug fix comment")
 
 	if event.uuid == "" {
 		t.Error("Expected UUID to be generated")
@@ -29,6 +29,9 @@ func TestNewEvent(t *testing.T) {
 	}
 	if event.summary != "Worked on bug fix" {
 		t.Errorf("Expected summary 'Worked on bug fix', got '%s'", event.summary)
+	}
+	if event.comment != "bug fix comment" {
+		t.Errorf("Expected comment 'bug fix comment', got '%s'", event.comment)
 	}
 
 	hasDTSTAMP := false
@@ -74,7 +77,7 @@ func TestNewEvent(t *testing.T) {
 func TestMakeVEventForEvent_NewEvent(t *testing.T) {
 	start := time.Date(2023, 8, 14, 9, 0, 0, 0, time.Local)
 	end := time.Date(2023, 8, 14, 10, 0, 0, 0, time.Local)
-	event := NewEvent("task-uuid", start, end, 3600, "Worked on bug fix")
+	event := NewEvent("task-uuid", start, end, 3600, "Worked on bug fix", "bug fix comment")
 
 	ve := makeVEventForEvent(event)
 
@@ -86,6 +89,11 @@ func TestMakeVEventForEvent_NewEvent(t *testing.T) {
 	summary := ve.GetProperty(ics.ComponentPropertySummary)
 	if summary == nil || summary.Value != "Worked on bug fix" {
 		t.Error("Expected SUMMARY to be set")
+	}
+
+	comment := ve.GetProperty(ics.ComponentProperty(ics.PropertyComment))
+	if comment == nil || comment.Value != "bug fix comment" {
+		t.Error("Expected COMMENT to be set")
 	}
 
 	related := ve.GetProperty("RELATED-TO")
@@ -123,7 +131,7 @@ func TestUpdateEventLastModified(t *testing.T) {
 	worklog := createTestWorklog()
 	start := time.Date(2023, 8, 14, 9, 0, 0, 0, time.Local)
 	end := time.Date(2023, 8, 14, 10, 0, 0, 0, time.Local)
-	event := NewEvent("task-uuid", start, end, 3600, "Test")
+	event := NewEvent("task-uuid", start, end, 3600, "Test", "")
 	worklog.AddEvent(event)
 
 	// Set LAST-MODIFIED to a known old value to ensure it changes
@@ -133,8 +141,8 @@ func TestUpdateEventLastModified(t *testing.T) {
 		}
 	}
 
-	newNote := "Updated"
-	worklog.UpdateEvent(event.uuid, EventUpdate{Summary: &newNote})
+	newComment := "Updated"
+	worklog.UpdateEvent(event.uuid, EventUpdate{Comment: &newComment})
 
 	newLastMod := ""
 	for _, prop := range event.properties {

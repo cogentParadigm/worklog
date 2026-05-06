@@ -225,11 +225,10 @@ func (worklog *Worklog) DeleteEvent(uuid string) error {
 }
 
 type EventUpdate struct {
-	Dtstart     *time.Time
-	Dtend       *time.Time
-	Duration    *int
-	Summary     *string
-	Description *string
+	Dtstart  *time.Time
+	Dtend    *time.Time
+	Duration *int
+	Comment  *string
 }
 
 func (worklog *Worklog) UpdateEvent(uuid string, update EventUpdate) error {
@@ -238,11 +237,8 @@ func (worklog *Worklog) UpdateEvent(uuid string, update EventUpdate) error {
 		return fmt.Errorf("event with UUID '%s' not found", uuid)
 	}
 
-	if update.Summary != nil {
-		event.summary = *update.Summary
-	}
-	if update.Description != nil {
-		event.description = *update.Description
+	if update.Comment != nil {
+		event.comment = *update.Comment
 	}
 
 	startChanged := update.Dtstart != nil
