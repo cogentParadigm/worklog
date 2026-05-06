@@ -1,6 +1,9 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -1027,5 +1030,113 @@ func TestUpdateEventEndRecomputeDuration(t *testing.T) {
 	expectedDur := int(newEnd.Sub(start).Seconds()) // 7200
 	if event.duration != expectedDur {
 		t.Errorf("Expected duration %d, got %d", expectedDur, event.duration)
+	}
+}
+
+func TestSaveRoundTrip(t *testing.T) {
+	// 1. Load example.ics
+	worklog, err := NewWorklog("testdata/example.ics")
+	if err != nil {
+		t.Fatalf("Failed to load worklog: %v", err)
+	}
+
+	originalTaskCount := len(flattenTasks(worklog.tasks))
+	originalEventCount := len(worklog.events)
+
+	// 2. Mutate
+
+	// Rename an existing task
+	targetUUID := "ace3355a-b9ef-4bb1-ac87-ed1b73f5810a"
+	err = worklog.UpdateTask(targetUUID, TaskUpdate{Name: strPtr("08/14 - ACCPLAN-90 Updated")})
+	if err != nil {
+		t.Fatalf("Failed to rename task: %v", err)
+	}
+
+	// Add a new root task
+	newRoot := worklog.NewTask("New Root Task")
+
+	// Add a new child task under an existing parent
+	parentUUID := "b5ed3012-e2d5-4295-bf25-9aeecedc134b"
+	newChild := worklog.NewTask("New Child Task")
+	err = worklog.UpdateTask(newChild.uuid, TaskUpdate{ParentUUID: &parentUUID})
+	if err != nil {
+		t.Fatalf("Failed to set parent for new child task: %v", err)
+	}
+
+	// 3. Save to a temp file
+	tmpDir := t.TempDir()
+	tmpPath := filepath.Join(tmpDir, "roundtrip.ics")
+	err = worklog.Save(tmpPath)
+	if err != nil {
+		t.Fatalf("Failed to save worklog: %v", err)
+	}
+
+	// 4. Reload
+	reloaded, err := NewWorklog(tmpPath)
+	if err != nil {
+		t.Fatalf("Failed to reload worklog: %v", err)
+	}
+
+	// 5. Verify
+
+	// Task count increased by 2
+	reloadedTasks := flattenTasks(reloaded.tasks)
+	if len(reloadedTasks) != originalTaskCount+2 {
+		t.Errorf("Expected %d tasks, got %d", originalTaskCount+2, len(reloadedTasks))
+	}
+
+	// Event count unchanged
+	if len(reloaded.events) != originalEventCount {
+		t.Errorf("Expected %d events, got %d", originalEventCount, len(reloaded.events))
+	}
+
+	// Renamed task preserved
+	renamed := reloaded.FindTaskByUUID(targetUUID)
+	if renamed == nil {
+		t.Fatalf("Expected renamed task to exist after reload")
+	}
+	if renamed.name != "08/14 - ACCPLAN-90 Updated" {
+		t.Errorf("Expected renamed task name '08/14 - ACCPLAN-90 Updated', got '%s'", renamed.name)
+	}
+
+	// New root task exists and is at root
+	foundNewRoot := reloaded.FindTaskByUUID(newRoot.uuid)
+	if foundNewRoot == nil {
+		t.Errorf("Expected new root task to exist after reload")
+	} else if foundNewRoot.parent != nil {
+		t.Errorf("Expected new root task to have no parent")
+	}
+
+	// New child task exists with correct parent
+	foundNewChild := reloaded.FindTaskByUUID(newChild.uuid)
+	if foundNewChild == nil {
+		t.Errorf("Expected new child task to exist after reload")
+	} else if foundNewChild.parent == nil || foundNewChild.parent.uuid != parentUUID {
+		t.Errorf("Expected new child task parent to be %s, got %v", parentUUID, foundNewChild.parent)
+	}
+
+	// Verify an event still links to the renamed task
+	eventFound := false
+	for _, ev := range reloaded.events {
+		if ev.relatedTo == targetUUID {
+			eventFound = true
+			break
+		}
+	}
+	if !eventFound {
+		t.Errorf("Expected at least one event linked to renamed task")
+	}
+
+	// Verify calendar-level properties preserved in raw output
+	rawBytes, err := os.ReadFile(tmpPath)
+	if err != nil {
+		t.Fatalf("Failed to read saved file: %v", err)
+	}
+	raw := string(rawBytes)
+	if !strings.Contains(raw, "PRODID:-//K Desktop Environment//NONSGML libkcal 4.3//EN") {
+		t.Errorf("Expected original PRODID to be preserved in output")
+	}
+	if !strings.Contains(raw, "X-KDE-ICAL-IMPLEMENTATION-VERSION:1.0") {
+		t.Errorf("Expected original X-KDE property to be preserved in output")
 	}
 }
