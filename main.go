@@ -27,6 +27,7 @@ func run(args []string) error {
 		fmt.Println("  update  Update a task")
 		fmt.Println("  delete  Delete a task")
 		fmt.Println("  time    Manage time entries")
+		fmt.Println("  report  Generate reports")
 		return fmt.Errorf("no command provided")
 	}
 
@@ -326,6 +327,85 @@ func run(args []string) error {
 			fmt.Println("Time entry deleted.")
 		default:
 			return fmt.Errorf("unknown time subcommand '%s'", timeSubcommand)
+		}
+	case "report":
+		if len(args) < 2 {
+			fmt.Println("Usage: worklog report <subcommand> [<args>]")
+			fmt.Println("")
+			fmt.Println("Available report subcommands:")
+			fmt.Println("  timesheet  Generate a timesheet report")
+			return fmt.Errorf("no report subcommand provided")
+		}
+		reportSubcommand := args[1]
+		reportArgs := args[2:]
+
+		switch reportSubcommand {
+		case "timesheet":
+			timesheetCommand := flag.NewFlagSet("report timesheet", flag.ExitOnError)
+			timesheetFrom := timesheetCommand.String("from", "", "Start date (YYYY-MM-DD, defaults to Monday of current week)")
+			timesheetTo := timesheetCommand.String("to", "", "End date (YYYY-MM-DD, defaults to Sunday of current week)")
+			timesheetFormat := timesheetCommand.String("format", "table", "Output format: table or csv")
+			timesheetDecimal := timesheetCommand.Bool("decimal", false, "Display hours in decimal format (e.g., 1.50)")
+			timesheetAll := timesheetCommand.Bool("all", false, "Use the full date range of all events")
+			timesheetHideEmpty := timesheetCommand.Bool("hide-empty", false, "Hide days with no time entries")
+			timesheetCommand.Parse(reportArgs)
+
+			isDefaultRange := true
+			from, to := currentWeekRange(time.Now())
+
+			if *timesheetAll {
+				isDefaultRange = false
+				min, max := eventDateRange(worklog)
+				if !min.IsZero() {
+					from = min
+				}
+				if !max.IsZero() {
+					to = max
+				}
+			}
+			if *timesheetFrom != "" {
+				isDefaultRange = false
+				parsed, err := parseDateFlag(*timesheetFrom)
+				if err != nil {
+					return err
+				}
+				from = parsed
+			}
+			if *timesheetTo != "" {
+				isDefaultRange = false
+				parsed, err := parseDateFlag(*timesheetTo)
+				if err != nil {
+					return err
+				}
+				to = parsed
+			}
+			if from.After(to) {
+				return fmt.Errorf("from date must not be after to date")
+			}
+
+			ts := generateTimesheet(worklog, from, to)
+			if *timesheetHideEmpty {
+				ts = hideEmptyColumns(ts)
+			}
+
+			if len(ts.rows) == 0 {
+				fmt.Println("No time entries in the selected date range.")
+				if isDefaultRange {
+					fmt.Println("Use --all to see all data, or specify --from and --to.")
+				}
+				return nil
+			}
+
+			switch *timesheetFormat {
+			case "table":
+				printTimesheetTable(os.Stdout, ts, *timesheetDecimal)
+			case "csv":
+				printTimesheetCSV(os.Stdout, ts, *timesheetDecimal)
+			default:
+				return fmt.Errorf("unknown format '%s', use 'table' or 'csv'", *timesheetFormat)
+			}
+		default:
+			return fmt.Errorf("unknown report subcommand '%s'", reportSubcommand)
 		}
 	default:
 		return fmt.Errorf("unknown command '%s'", args[0])

@@ -14,6 +14,7 @@ Worklog reads and writes standard iCalendar (`.ics`) files, making it compatible
 - **Hierarchical Tasks**: Supports parent-child task relationships
 - **Simple CLI**: List, create, update, and delete tasks from the command line
 - **Time Entry Management**: Add, list, edit, and delete manual time entries with duration auto-recompute
+- **Timesheet Reports**: Generate daily timesheets by task with table and CSV output
 - **Extensible**: Architecture supports plugins/integrations for external time tracking systems
 
 ## Installation
@@ -171,6 +172,33 @@ worklog time delete -uuid <event-uuid>
 worklog time delete -uuid <event-uuid> -force
 ```
 
+### `report timesheet`
+
+Generates a timesheet showing time logged per task per day. Defaults to the current week (Monday–Sunday). Only tasks with direct time entries in the selected range are shown.
+
+**Flags:**
+- `-from` — Start date (`YYYY-MM-DD`, defaults to Monday of current week).
+- `-to` — End date (`YYYY-MM-DD`, defaults to Sunday of current week).
+- `-all` — Use the full date range of all events in the file (ignores `-from`/`-to`).
+- `-hide-empty` — Hide day columns that have no time entries.
+- `-format` — Output format: `table` (default) or `csv`.
+- `-decimal` — Display hours in decimal format (e.g., `1.50`) instead of `1h30m`.
+
+**Examples:**
+```bash
+# Current week in table format
+worklog report timesheet
+
+# Custom date range
+worklog report timesheet -from 2023-08-01 -to 2023-08-15
+
+# CSV export with decimal hours
+worklog report timesheet -format csv -decimal
+
+# View all data, skipping empty days
+worklog report timesheet -all -hide-empty
+```
+
 ## File I/O
 
 The tool currently reads from `testdata/example.ics` and writes to `testdata/example-output.ics`. This path is temporary and will become configurable in a future release.
@@ -201,6 +229,7 @@ See [ROADMAP.md](ROADMAP.md) for details on planned features.
 - `worklog.go` - Core Worklog struct and persistence
 - `task.go` - Task domain model and iCalendar conversion
 - `event.go` - Event/time entry model and iCalendar conversion
+- `report.go` - Report generation and formatting
 - `ical.go` - iCalendar file I/O utilities
 - `*_test.go` - Unit tests
 - `testdata/` - Sample iCalendar files used for development and testing
