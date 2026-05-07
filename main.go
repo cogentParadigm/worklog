@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	ics "github.com/arran4/golang-ical"
 )
 
 func main() {
@@ -31,6 +33,7 @@ func printTopLevelUsage() {
 	fmt.Println("  task    Manage tasks")
 	fmt.Println("  time    Manage time entries")
 	fmt.Println("  report  Generate reports")
+	fmt.Println("  jira    Sync time entries to Jira/Tempo")
 }
 
 func printTaskUsage() {
@@ -395,6 +398,8 @@ func run(args []string) error {
 		default:
 			return fmt.Errorf("unknown time subcommand '%s'", timeSubcommand)
 		}
+	case "jira":
+		return runJira(args[1:])
 	case "report":
 		if len(args) < 2 {
 			printReportUsage()
@@ -586,6 +591,7 @@ func runTaskCreate(args []string) error {
 	createName := createCommand.String("name", "", "The name of the task")
 	createDescription := createCommand.String("description", "", "Additional or more detailed description")
 	createParent := createCommand.String("parent", "", "Unique ID of parent task")
+	createIssueKey := createCommand.String("issue-key", "", "Explicit Jira issue key for this task")
 	configureFlagSet(createCommand, "Create a new task with an auto-generated UUID.", "  worklog task create -name \"Project Setup\"\n  worklog task create -name \"Subtask\" -parent <uuid>\n  worklog task create -file ~/tasks.ics -output ~/backup.ics -name \"Backup\"")
 	if err := createCommand.Parse(args); err != nil {
 		return err
@@ -598,6 +604,11 @@ func runTaskCreate(args []string) error {
 
 	task := worklog.NewTask(*createName)
 	task.description = *createDescription
+	if *createIssueKey != "" {
+		task.properties = append(task.properties, ics.IANAProperty{
+			BaseProperty: ics.BaseProperty{IANAToken: "X-WORKLOG-ISSUE-KEY", Value: *createIssueKey},
+		})
+	}
 	if *createParent != "" {
 		parentTask := worklog.FindTaskByUUID(*createParent)
 		if parentTask == nil {
@@ -621,6 +632,7 @@ func runTaskUpdate(args []string) error {
 	updateName := updateCommand.String("name", "", "New name for the task")
 	updateDescription := updateCommand.String("description", "", "New description for the task")
 	updateParent := updateCommand.String("parent", "", "New parent UUID for the task")
+	updateIssueKey := updateCommand.String("issue-key", "", "Explicit Jira issue key for this task")
 	configureFlagSet(updateCommand, "Update an existing task. Only provided fields are changed.", "  worklog task update -uuid <uuid> -name \"New Name\"\n  worklog task update -uuid <uuid> -parent \"\"\n  worklog task update -uuid <uuid> -description \"Details\"")
 	if err := updateCommand.Parse(args); err != nil {
 		return err
@@ -635,6 +647,7 @@ func runTaskUpdate(args []string) error {
 		return fmt.Errorf("-uuid flag is required for update command")
 	}
 
+	issueKeySet := false
 	update := TaskUpdate{}
 	updateCommand.Visit(func(f *flag.Flag) {
 		switch f.Name {
@@ -644,12 +657,31 @@ func runTaskUpdate(args []string) error {
 			update.Description = updateDescription
 		case "parent":
 			update.ParentUUID = updateParent
+		case "issue-key":
+			issueKeySet = true
 		}
 	})
 
 	if err := worklog.UpdateTask(*updateUUID, update); err != nil {
 		return err
 	}
+
+	if issueKeySet {
+		task := worklog.FindTaskByUUID(*updateUUID)
+		var newProps []ics.IANAProperty
+		for _, prop := range task.properties {
+			if prop.IANAToken != "X-WORKLOG-ISSUE-KEY" {
+				newProps = append(newProps, prop)
+			}
+		}
+		if *updateIssueKey != "" {
+			newProps = append(newProps, ics.IANAProperty{
+				BaseProperty: ics.BaseProperty{IANAToken: "X-WORKLOG-ISSUE-KEY", Value: *updateIssueKey},
+			})
+		}
+		task.properties = newProps
+	}
+
 	if err := worklog.Save(*updateOutput); err != nil {
 		return err
 	}

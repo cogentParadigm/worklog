@@ -15,6 +15,7 @@ Worklog reads and writes standard iCalendar (`.ics`) files, making it compatible
 - **Simple CLI**: List, create, update, and delete tasks from the command line
 - **Time Entry Management**: Add, list, edit, and delete manual time entries with duration auto-recompute
 - **Timesheet Reports**: Generate daily timesheets by task with table and CSV output
+- **Jira/Tempo Sync**: Send time entries to Tempo Cloud with preview, dry-run, and confirmation
 - **Extensible**: Architecture supports plugins/integrations for external time tracking systems
 
 ## Installation
@@ -83,12 +84,14 @@ Creates a new task with an auto-generated UUID.
 - `-name` — The name/summary of the task.
 - `-description` — Additional detailed description.
 - `-parent` — UUID of the parent task under which to create this task (optional).
+- `-issue-key` — Explicit Jira issue key for this task (optional, overrides auto-detection).
 
 **Examples:**
 ```bash
 worklog task create -name "Project Setup" -description "Initial configuration"
 worklog task create -file ~/tasks.ics -name "Configure database" -parent <parent-uuid>
 worklog task create -file ~/source.ics -output ~/backup.ics -name "Backup task"
+worklog task create -name "Review PR" -issue-key PROJ-123
 ```
 
 ### `task update`
@@ -102,6 +105,7 @@ Updates an existing task. Only the fields you provide are changed.
 - `-name` — New name for the task.
 - `-description` — New description for the task.
 - `-parent` — New parent UUID for the task. Set to an empty string to move the task to the root level.
+- `-issue-key` — Explicit Jira issue key for this task. Set to an empty string to clear it.
 
 Cycle detection prevents a task from being set as its own parent or moved under one of its descendants.
 
@@ -110,6 +114,7 @@ Cycle detection prevents a task from being set as its own parent or moved under 
 worklog task update -uuid <uuid> -name "Updated Name"
 worklog task update -file ~/tasks.ics -uuid <uuid> -description "New details"
 worklog task update -uuid <uuid> -parent ""
+worklog task update -uuid <uuid> -issue-key PROJ-456
 ```
 
 ### `task delete`
@@ -237,6 +242,58 @@ worklog report timesheet -format csv -decimal
 worklog report timesheet -all -hide-empty
 ```
 
+### `jira sync`
+
+Syncs time entries to Tempo Cloud (Jira). Entries are **merged by task and date** before sending: multiple small entries on the same day for the same task are summed into a single worklog with combined comments. By default, only unsynced entries are sent. Issue keys are auto-detected from task names (e.g., `PROJ-123`) or set explicitly via `-issue-key` on task create/update.
+
+**Flags:**
+- `-file` — Path to the `.ics` file (overrides `WORKLOG_FILE`).
+- `-output` — Output path for the updated `.ics` file. If omitted, writes back to the input file.
+- `-task` — Sync only a specific task UUID (optional).
+- `-from` — Start date for sync range (`YYYY-MM-DD`, optional).
+- `-to` — End date for sync range (`YYYY-MM-DD`, optional).
+- `-dry-run` — Preview what would be synced without sending anything.
+- `-force` — Sync without interactive confirmation.
+
+**Examples:**
+```bash
+# Preview what would be sent (shows merged entries)
+worklog jira sync --dry-run
+
+# Sync all unsynced entries for a single task
+worklog jira sync --task <uuid>
+
+# Sync a specific date range
+worklog jira sync --from 2026-05-01 --to 2026-05-07
+
+# Sync without prompting
+worklog jira sync --force
+```
+
+## Configuration
+
+Worklog reads an optional YAML config file from the standard config directory:
+- Linux: `~/.config/worklog/config.yaml`
+- macOS: `~/Library/Application Support/worklog/config.yaml`
+
+Override the directory with the `XDG_CONFIG_HOME` environment variable.
+
+**Example `config.yaml`:**
+```yaml
+worklog_file: ~/tasks.ics
+
+tempo:
+  base_url: https://api.tempo.io/core/3
+  token: my-api-token
+  account_id: your-atlassian-account-id
+```
+
+**Credential security:** The `token` field supports a `pass:` prefix to read secrets from the [`pass`](https://www.passwordstore.org/) password store:
+```yaml
+tempo:
+  token: "pass:worklog/tempo-token"
+```
+
 ## File I/O
 
 Worklog reads and writes standard `.ics` files. By default, modifying commands save **in-place** back to the input file. Use the `-output` flag to write to a different path instead.
@@ -244,8 +301,9 @@ Worklog reads and writes standard `.ics` files. By default, modifying commands s
 The input file is resolved in this order:
 1. `-file` flag on the command.
 2. `WORKLOG_FILE` environment variable.
+3. `worklog_file` in `config.yaml`.
 
-If neither is set, the command exits with an error telling you to use one of the two options.
+If none are set, the command exits with an error.
 
 All existing VEVENT components (KTimeTracker timer sessions), calendar-level properties, and any unknown iCalendar components are preserved exactly across saves.
 
@@ -260,10 +318,10 @@ Your existing KTimeTracker data will be preserved and readable by this tool.
 
 ## Integrations
 
-Worklog is designed with an extensible integration system. Planned integrations include:
+Worklog is designed with an extensible integration system.
 
-- **Jira**: Log time entries as worklogs with preview/confirmation
-- Additional integrations can be added via the plugin architecture
+- **Jira/Tempo**: The `worklog jira sync` command sends time entries to Tempo Cloud. Issue keys are auto-detected from task names (e.g., `PROJ-123`) or set explicitly with the `-issue-key` flag.
+- Additional integrations can be added by following the patterns in `internal/tempo/` and `cmd_jira.go`.
 
 See [ROADMAP.md](ROADMAP.md) for details on planned features.
 
@@ -275,6 +333,10 @@ See [ROADMAP.md](ROADMAP.md) for details on planned features.
 - `event.go` - Event/time entry model and iCalendar conversion
 - `report.go` - Report generation and formatting
 - `ical.go` - iCalendar file I/O utilities
+- `config.go` - Configuration file loading (`config.yaml`, `pass:` credential support)
+- `jira.go` - Jira/Tempo domain helpers (issue key mapping, sync state)
+- `cmd_jira.go` - Jira/Tempo CLI command implementation
+- `internal/tempo/client.go` - Tempo Cloud REST API client
 - `*_test.go` - Unit tests
 - `testdata/` - Sample iCalendar files used for development and testing
 
