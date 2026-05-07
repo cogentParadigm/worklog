@@ -458,6 +458,90 @@ func TestBuildSyncEntriesNoReSyncIfUnchanged(t *testing.T) {
 	}
 }
 
+func TestBuildTimesheetFromSyncEntries(t *testing.T) {
+	task1 := NewTask("Task A PROJ-1")
+	task1.uuid = "task-a"
+	task2 := NewTask("Task B PROJ-2")
+	task2.uuid = "task-b"
+
+	entries := []syncEntry{
+		{task: task1, start: time.Date(2026, 5, 6, 9, 0, 0, 0, time.UTC), duration: 3600},
+		{task: task1, start: time.Date(2026, 5, 7, 10, 0, 0, 0, time.UTC), duration: 1800},
+		{task: task2, start: time.Date(2026, 5, 6, 14, 0, 0, 0, time.UTC), duration: 7200},
+	}
+
+	ts := buildTimesheetFromSyncEntries(entries, time.Time{}, time.Time{})
+
+	if len(ts.days) != 2 {
+		t.Fatalf("expected 2 days, got %d", len(ts.days))
+	}
+	if !ts.days[0].Equal(time.Date(2026, 5, 6, 0, 0, 0, 0, time.UTC)) {
+		t.Errorf("day 0: got %v", ts.days[0])
+	}
+	if !ts.days[1].Equal(time.Date(2026, 5, 7, 0, 0, 0, 0, time.UTC)) {
+		t.Errorf("day 1: got %v", ts.days[1])
+	}
+
+	if len(ts.rows) != 2 {
+		t.Fatalf("expected 2 rows, got %d", len(ts.rows))
+	}
+	if ts.rows[0].task.name != "Task A PROJ-1" {
+		t.Errorf("row 0 task: got %s", ts.rows[0].task.name)
+	}
+	if ts.rows[0].durations[0] != 3600 || ts.rows[0].durations[1] != 1800 {
+		t.Errorf("row 0 durations: got %v", ts.rows[0].durations)
+	}
+	if ts.rows[1].task.name != "Task B PROJ-2" {
+		t.Errorf("row 1 task: got %s", ts.rows[1].task.name)
+	}
+	if ts.rows[1].durations[0] != 7200 || ts.rows[1].durations[1] != 0 {
+		t.Errorf("row 1 durations: got %v", ts.rows[1].durations)
+	}
+
+	if ts.totals[0] != 10800 || ts.totals[1] != 1800 {
+		t.Errorf("totals: got %v", ts.totals)
+	}
+}
+
+func TestBuildTimesheetFromSyncEntriesWithRange(t *testing.T) {
+	task := NewTask("Task A PROJ-1")
+	task.uuid = "task-a"
+
+	entries := []syncEntry{
+		{task: task, start: time.Date(2026, 5, 6, 9, 0, 0, 0, time.UTC), duration: 3600},
+	}
+
+	from := time.Date(2026, 5, 5, 0, 0, 0, 0, time.UTC)
+	to := time.Date(2026, 5, 8, 0, 0, 0, 0, time.UTC)
+	ts := buildTimesheetFromSyncEntries(entries, from, to)
+
+	if len(ts.days) != 4 {
+		t.Fatalf("expected 4 days, got %d", len(ts.days))
+	}
+	if ts.rows[0].durations[0] != 0 || ts.rows[0].durations[1] != 3600 {
+		t.Errorf("durations: got %v", ts.rows[0].durations)
+	}
+}
+
+func TestBuildTimesheetFromSyncEntriesAggregatesSameTaskSameDay(t *testing.T) {
+	task := NewTask("Task A PROJ-1")
+	task.uuid = "task-a"
+
+	entries := []syncEntry{
+		{task: task, start: time.Date(2026, 5, 6, 9, 0, 0, 0, time.UTC), duration: 3600},
+		{task: task, start: time.Date(2026, 5, 6, 14, 0, 0, 0, time.UTC), duration: 1800},
+	}
+
+	ts := buildTimesheetFromSyncEntries(entries, time.Time{}, time.Time{})
+
+	if len(ts.rows) != 1 {
+		t.Fatalf("expected 1 row, got %d", len(ts.rows))
+	}
+	if ts.rows[0].durations[0] != 5400 {
+		t.Errorf("expected 5400, got %d", ts.rows[0].durations[0])
+	}
+}
+
 func TestTruncate(t *testing.T) {
 	if got := truncate("short", 10); got != "short" {
 		t.Errorf("short string: got %q", got)

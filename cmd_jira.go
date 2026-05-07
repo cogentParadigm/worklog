@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 	"time"
@@ -53,7 +54,10 @@ func runJiraSync(args []string) error {
 	syncTo := syncCommand.String("to", "", "End date for sync range (YYYY-MM-DD)")
 	syncDryRun := syncCommand.Bool("dry-run", false, "Preview what would be synced without sending")
 	syncForce := syncCommand.Bool("force", false, "Sync without confirmation prompt")
-	configureFlagSet(syncCommand, "Sync time entries to Tempo Cloud. Entries are merged by task and date before sending.", "  worklog jira sync --dry-run\n  worklog jira sync --task <uuid>\n  worklog jira sync --from 2026-05-01 --to 2026-05-07")
+	syncFormat := syncCommand.String("format", "list", "Preview format: list or timesheet")
+	syncHideEmpty := syncCommand.Bool("hide-empty", false, "Hide days with no time entries (timesheet format only)")
+	syncDecimal := syncCommand.Bool("decimal", false, "Display hours in decimal format (timesheet format only)")
+	configureFlagSet(syncCommand, "Sync time entries to Tempo Cloud. Entries are merged by task and date before sending.", "  worklog jira sync --dry-run\n  worklog jira sync --task <uuid>\n  worklog jira sync --from 2026-05-01 --to 2026-05-07\n  worklog jira sync --dry-run --format timesheet --hide-empty")
 	if err := syncCommand.Parse(args); err != nil {
 		return err
 	}
@@ -106,17 +110,26 @@ func runJiraSync(args []string) error {
 		return nil
 	}
 
-	fmt.Printf("%-30s %-12s %-10s %-8s %s\n", "Task", "Issue Key", "Date", "Duration", "Comment")
-	fmt.Println(strings.Repeat("-", 80))
-	for _, e := range entries {
-		durStr := formatDuration(e.duration)
-		dateStr := e.start.Format("2006-01-02")
-		name := truncate(e.task.name, 30)
-		comment := truncate(e.comment, 30)
-		fmt.Printf("%-30s %-12s %-10s %-8s %s\n", name, e.issueKey, dateStr, durStr, comment)
+	if *syncFormat == "timesheet" {
+		ts := buildTimesheetFromSyncEntries(entries, fromDay, toDay)
+		if *syncHideEmpty {
+			ts = hideEmptyColumns(ts)
+		}
+		printTimesheetTable(os.Stdout, ts, *syncDecimal)
+		fmt.Printf("\nTotal: %d worklog(s) to send.\n", len(entries))
+	} else {
+		fmt.Printf("%-30s %-12s %-10s %-8s %s\n", "Task", "Issue Key", "Date", "Duration", "Comment")
+		fmt.Println(strings.Repeat("-", 80))
+		for _, e := range entries {
+			durStr := formatDuration(e.duration)
+			dateStr := e.start.Format("2006-01-02")
+			name := truncate(e.task.name, 30)
+			comment := truncate(e.comment, 30)
+			fmt.Printf("%-30s %-12s %-10s %-8s %s\n", name, e.issueKey, dateStr, durStr, comment)
+		}
+		fmt.Println(strings.Repeat("-", 80))
+		fmt.Printf("Total: %d worklog(s) to send.\n", len(entries))
 	}
-	fmt.Println(strings.Repeat("-", 80))
-	fmt.Printf("Total: %d worklog(s) to send.\n", len(entries))
 
 	if *syncDryRun {
 		fmt.Println("Dry run complete. No entries were sent.")
@@ -254,6 +267,84 @@ func buildSyncEntries(worklog *Worklog, taskUUID string, fromDay, toDay time.Tim
 	})
 
 	return entries, nil
+}
+
+func buildTimesheetFromSyncEntries(entries []syncEntry, from, to time.Time) *Timesheet {
+	var minDay, maxDay time.Time
+	for _, e := range entries {
+		day := time.Date(e.start.Year(), e.start.Month(), e.start.Day(), 0, 0, 0, 0, e.start.Location())
+		if minDay.IsZero() || day.Before(minDay) {
+			minDay = day
+		}
+		if maxDay.IsZero() || day.After(maxDay) {
+			maxDay = day
+		}
+	}
+
+	if !from.IsZero() {
+		minDay = from
+	}
+	if !to.IsZero() {
+		maxDay = to
+	}
+
+	var days []time.Time
+	day := minDay
+	endDay := maxDay
+	for !day.After(endDay) {
+		days = append(days, day)
+		day = day.AddDate(0, 0, 1)
+	}
+
+	dayIndex := make(map[string]int)
+	for i, d := range days {
+		dayIndex[d.Format("2006-01-02")] = i
+	}
+
+	taskDurations := make(map[string][]int)
+	taskMap := make(map[string]*Task)
+	for _, e := range entries {
+		dayStr := time.Date(e.start.Year(), e.start.Month(), e.start.Day(), 0, 0, 0, 0, e.start.Location()).Format("2006-01-02")
+		idx, ok := dayIndex[dayStr]
+		if !ok {
+			continue
+		}
+		if _, ok := taskDurations[e.task.uuid]; !ok {
+			taskDurations[e.task.uuid] = make([]int, len(days))
+			taskMap[e.task.uuid] = e.task
+		}
+		taskDurations[e.task.uuid][idx] += e.duration
+	}
+
+	var rows []TimesheetRow
+	for uuid, durations := range taskDurations {
+		total := 0
+		for _, d := range durations {
+			total += d
+		}
+		rows = append(rows, TimesheetRow{
+			task:      taskMap[uuid],
+			durations: durations,
+			total:     total,
+		})
+	}
+
+	sort.Slice(rows, func(i, j int) bool {
+		return rows[i].task.name < rows[j].task.name
+	})
+
+	totals := make([]int, len(days))
+	for i := range days {
+		for _, row := range rows {
+			totals[i] += row.durations[i]
+		}
+	}
+
+	return &Timesheet{
+		days:   days,
+		rows:   rows,
+		totals: totals,
+	}
 }
 
 func truncate(s string, maxLen int) string {
