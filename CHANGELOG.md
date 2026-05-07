@@ -1,3 +1,10 @@
+# [0.14.0](https://github.com/cogentParadigm/worklog/compare/v0.13.0...v0.14.0) (2026-05-07)
+
+
+### Features
+
+* add timesheet format option to jira sync preview ([256c983](https://github.com/cogentParadigm/worklog/commit/256c9836a74c81a9ba0bad4612e79a0e1a852ace))
+
 # [0.13.0](https://github.com/cogentParadigm/worklog/compare/v0.12.0...v0.13.0) (2026-05-07)
 
 
