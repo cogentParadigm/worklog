@@ -1,3 +1,10 @@
+# [0.12.0](https://github.com/cogentParadigm/worklog/compare/v0.11.1...v0.12.0) (2026-05-07)
+
+
+### Features
+
+* add filtering flags to time list and task list commands ([3adb3ef](https://github.com/cogentParadigm/worklog/commit/3adb3ef719d527ae090c140c0912dce328915f96))
+
 ## [0.11.1](https://github.com/cogentParadigm/worklog/compare/v0.11.0...v0.11.1) (2026-05-06)
 
 
