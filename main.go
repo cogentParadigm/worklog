@@ -90,7 +90,12 @@ func resolveFilePath(flagValue string) (string, error) {
 func loadWorklog(flagValue string) (*Worklog, error) {
 	filePath, err := resolveFilePath(flagValue)
 	if err != nil {
-		return nil, err
+		cfg, cfgErr := LoadConfig()
+		if cfgErr == nil && cfg.WorklogFile != "" {
+			filePath = cfg.WorklogFile
+		} else {
+			return nil, err
+		}
 	}
 	return NewWorklog(filePath)
 }
