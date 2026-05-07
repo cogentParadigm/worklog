@@ -254,6 +254,9 @@ Syncs time entries to Tempo Cloud (Jira). Entries are **merged by task and date*
 - `-to` — End date for sync range (`YYYY-MM-DD`, optional).
 - `-dry-run` — Preview what would be synced without sending anything.
 - `-force` — Sync without interactive confirmation.
+- `-format` — Preview format: `list` (default) or `timesheet`.
+- `-hide-empty` — Hide days with no time entries (`timesheet` format only).
+- `-decimal` — Display hours in decimal format (`timesheet` format only).
 
 **Examples:**
 ```bash
@@ -268,6 +271,12 @@ worklog jira sync --from 2026-05-01 --to 2026-05-07
 
 # Sync without prompting
 worklog jira sync --force
+
+# Preview in timesheet grid format
+worklog jira sync --dry-run --format timesheet
+
+# Preview in timesheet format, hiding empty days and showing decimal hours
+worklog jira sync --dry-run --format timesheet --hide-empty --decimal
 ```
 
 ## Configuration
