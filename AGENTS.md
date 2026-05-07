@@ -42,6 +42,8 @@ Examples: `feat: add delete command`, `fix: handle nil parent in UpdateTask`
 
 A pre-commit hook (via `conform`) enforces this. Install it with `pre-commit install --hook-type=commit-msg`.
 
+You can add new scopes to `.conform.yaml`.
+
 ## README Maintenance
 
 When adding, modifying, or removing CLI commands, flags, or file I/O behavior, update `README.md` to keep the Usage section accurate. This includes command examples, flag descriptions, and any hardcoded paths or temporary behaviors.
