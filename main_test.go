@@ -449,3 +449,185 @@ func TestRunTimeListCombinedFilters(t *testing.T) {
 		}
 	}
 }
+
+func TestRunConfigPath(t *testing.T) {
+	tmpDir := t.TempDir()
+	origXDG := os.Getenv("XDG_CONFIG_HOME")
+	os.Setenv("XDG_CONFIG_HOME", tmpDir)
+	defer os.Setenv("XDG_CONFIG_HOME", origXDG)
+
+	out := captureStdout(func() {
+		err := run([]string{"config", "path"})
+		if err != nil {
+			t.Errorf("expected no error, got: %v", err)
+		}
+	})
+	want := filepath.Join(tmpDir, "worklog", "config.yaml")
+	if strings.TrimSpace(out) != want {
+		t.Errorf("config path: got %q, want %q", strings.TrimSpace(out), want)
+	}
+}
+
+func TestRunConfigGetSet(t *testing.T) {
+	tmpDir := t.TempDir()
+	origXDG := os.Getenv("XDG_CONFIG_HOME")
+	os.Setenv("XDG_CONFIG_HOME", tmpDir)
+	defer os.Setenv("XDG_CONFIG_HOME", origXDG)
+
+	// Pre-seed config
+	configDir := filepath.Join(tmpDir, "worklog")
+	os.MkdirAll(configDir, 0755)
+	configFile := filepath.Join(configDir, "config.yaml")
+	os.WriteFile(configFile, []byte("worklog_file: /original/tasks.ics\ntempo:\n  token: secret123\n"), 0644)
+
+	// get worklog_file
+	out := captureStdout(func() {
+		err := run([]string{"config", "get", "worklog_file"})
+		if err != nil {
+			t.Errorf("expected no error, got: %v", err)
+		}
+	})
+	if strings.TrimSpace(out) != "/original/tasks.ics" {
+		t.Errorf("config get: got %q", strings.TrimSpace(out))
+	}
+
+	// get tempo.token should be hidden
+	out = captureStdout(func() {
+		err := run([]string{"config", "get", "tempo.token"})
+		if err != nil {
+			t.Errorf("expected no error, got: %v", err)
+		}
+	})
+	if strings.TrimSpace(out) != "<hidden>" {
+		t.Errorf("config get hidden token: got %q", strings.TrimSpace(out))
+	}
+
+	// get --show tempo.token
+	out = captureStdout(func() {
+		err := run([]string{"config", "get", "--show", "tempo.token"})
+		if err != nil {
+			t.Errorf("expected no error, got: %v", err)
+		}
+	})
+	if strings.TrimSpace(out) != "secret123" {
+		t.Errorf("config get --show token: got %q", strings.TrimSpace(out))
+	}
+
+	// set worklog_file
+	newPath := filepath.Join(tmpDir, "new", "tasks.ics")
+	err := run([]string{"config", "set", "worklog_file", newPath})
+	if err != nil {
+		t.Fatalf("config set: %v", err)
+	}
+
+	// verify with get
+	out = captureStdout(func() {
+		err := run([]string{"config", "get", "worklog_file"})
+		if err != nil {
+			t.Errorf("expected no error, got: %v", err)
+		}
+	})
+	if strings.TrimSpace(out) != newPath {
+		t.Errorf("config get after set: got %q", strings.TrimSpace(out))
+	}
+}
+
+func TestConfigSetInvalidKey(t *testing.T) {
+	tmpDir := t.TempDir()
+	origXDG := os.Getenv("XDG_CONFIG_HOME")
+	os.Setenv("XDG_CONFIG_HOME", tmpDir)
+	defer os.Setenv("XDG_CONFIG_HOME", origXDG)
+
+	err := run([]string{"config", "set", "bogus", "value"})
+	if err == nil {
+		t.Fatal("expected error for invalid key")
+	}
+	if !strings.Contains(err.Error(), "unknown config key") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestConfigGetInvalidKey(t *testing.T) {
+	tmpDir := t.TempDir()
+	origXDG := os.Getenv("XDG_CONFIG_HOME")
+	os.Setenv("XDG_CONFIG_HOME", tmpDir)
+	defer os.Setenv("XDG_CONFIG_HOME", origXDG)
+
+	err := run([]string{"config", "get", "bogus"})
+	if err == nil {
+		t.Fatal("expected error for invalid key")
+	}
+}
+
+func TestInitCreatesConfigAndFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	origXDG := os.Getenv("XDG_CONFIG_HOME")
+	os.Setenv("XDG_CONFIG_HOME", tmpDir)
+	defer os.Setenv("XDG_CONFIG_HOME", origXDG)
+
+	icsPath := filepath.Join(tmpDir, "my-worklog.ics")
+
+	err := run([]string{"init", "--worklog-file", icsPath})
+	if err != nil {
+		t.Fatalf("init: %v", err)
+	}
+
+	configFile := filepath.Join(tmpDir, "worklog", "config.yaml")
+	if _, err := os.Stat(configFile); err != nil {
+		t.Fatalf("config file not created: %v", err)
+	}
+
+	if _, err := os.Stat(icsPath); err != nil {
+		t.Fatalf("ics file not created: %v", err)
+	}
+
+	// Verify config content
+	data, _ := os.ReadFile(configFile)
+	if !strings.Contains(string(data), "my-worklog.ics") {
+		t.Errorf("config missing worklog_file")
+	}
+}
+
+func TestInitFailsWithoutForce(t *testing.T) {
+	tmpDir := t.TempDir()
+	origXDG := os.Getenv("XDG_CONFIG_HOME")
+	os.Setenv("XDG_CONFIG_HOME", tmpDir)
+	defer os.Setenv("XDG_CONFIG_HOME", origXDG)
+
+	// Create existing config
+	configDir := filepath.Join(tmpDir, "worklog")
+	os.MkdirAll(configDir, 0755)
+	configFile := filepath.Join(configDir, "config.yaml")
+	os.WriteFile(configFile, []byte("worklog_file: /existing.ics\n"), 0644)
+
+	err := run([]string{"init", "--worklog-file", filepath.Join(tmpDir, "new.ics")})
+	if err == nil {
+		t.Fatal("expected error when config exists without --force")
+	}
+	if !strings.Contains(err.Error(), "already exists") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestInitForceOverwrites(t *testing.T) {
+	tmpDir := t.TempDir()
+	origXDG := os.Getenv("XDG_CONFIG_HOME")
+	os.Setenv("XDG_CONFIG_HOME", tmpDir)
+	defer os.Setenv("XDG_CONFIG_HOME", origXDG)
+
+	configDir := filepath.Join(tmpDir, "worklog")
+	os.MkdirAll(configDir, 0755)
+	configFile := filepath.Join(configDir, "config.yaml")
+	os.WriteFile(configFile, []byte("worklog_file: /old.ics\n"), 0644)
+
+	icsPath := filepath.Join(tmpDir, "new.ics")
+	err := run([]string{"init", "--worklog-file", icsPath, "--force"})
+	if err != nil {
+		t.Fatalf("init --force: %v", err)
+	}
+
+	data, _ := os.ReadFile(configFile)
+	if !strings.Contains(string(data), "new.ics") {
+		t.Errorf("config not overwritten")
+	}
+}

@@ -48,18 +48,107 @@ func (cfg *Config) ResolveTempoToken() (string, error) {
 	return cfg.Tempo.Token, nil
 }
 
-func configPath() string {
+func configDir() string {
 	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
-		return filepath.Join(xdg, "worklog", "config.yaml")
+		return filepath.Join(xdg, "worklog")
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		home = "."
 	}
 	if runtime.GOOS == "darwin" {
-		return filepath.Join(home, "Library", "Application Support", "worklog", "config.yaml")
+		return filepath.Join(home, "Library", "Application Support", "worklog")
 	}
-	return filepath.Join(home, ".config", "worklog", "config.yaml")
+	return filepath.Join(home, ".config", "worklog")
+}
+
+func configPath() string {
+	return filepath.Join(configDir(), "config.yaml")
+}
+
+func SaveConfig(cfg *Config) error {
+	dir := configDir()
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("create config directory: %w", err)
+	}
+	data, err := yaml.Marshal(cfg)
+	if err != nil {
+		return fmt.Errorf("marshal config: %w", err)
+	}
+	path := configPath()
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		return fmt.Errorf("write config file %s: %w", path, err)
+	}
+	return nil
+}
+
+func (cfg *Config) Get(key string) (string, error) {
+	switch key {
+	case "worklog_file":
+		return cfg.WorklogFile, nil
+	case "tempo.base_url":
+		return cfg.Tempo.BaseURL, nil
+	case "tempo.token":
+		if cfg.Tempo.Token == "" {
+			return "", nil
+		}
+		return "<hidden>", nil
+	case "tempo.account_id":
+		return cfg.Tempo.AccountID, nil
+	default:
+		return "", fmt.Errorf("unknown config key: %s", key)
+	}
+}
+
+func (cfg *Config) GetUnmasked(key string) (string, error) {
+	switch key {
+	case "worklog_file":
+		return cfg.WorklogFile, nil
+	case "tempo.base_url":
+		return cfg.Tempo.BaseURL, nil
+	case "tempo.token":
+		return cfg.Tempo.Token, nil
+	case "tempo.account_id":
+		return cfg.Tempo.AccountID, nil
+	default:
+		return "", fmt.Errorf("unknown config key: %s", key)
+	}
+}
+
+func (cfg *Config) Set(key, value string) error {
+	switch key {
+	case "worklog_file":
+		cfg.WorklogFile = value
+	case "tempo.base_url":
+		cfg.Tempo.BaseURL = value
+	case "tempo.token":
+		cfg.Tempo.Token = value
+	case "tempo.account_id":
+		cfg.Tempo.AccountID = value
+	default:
+		return fmt.Errorf("unknown config key: %s", key)
+	}
+	return nil
+}
+
+func isValidConfigKey(key string) bool {
+	switch key {
+	case "worklog_file", "tempo.base_url", "tempo.token", "tempo.account_id":
+		return true
+	default:
+		return false
+	}
+}
+
+func expandTilde(path string) string {
+	if strings.HasPrefix(path, "~/") {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return path
+		}
+		return filepath.Join(home, path[2:])
+	}
+	return path
 }
 
 func resolvePassSecret(key string) (string, error) {

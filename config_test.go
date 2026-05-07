@@ -202,6 +202,118 @@ func TestLoadConfigMalformed(t *testing.T) {
 	}
 }
 
+func TestSaveConfig(t *testing.T) {
+	tmpDir := t.TempDir()
+	origXDG := os.Getenv("XDG_CONFIG_HOME")
+	os.Setenv("XDG_CONFIG_HOME", tmpDir)
+	defer os.Setenv("XDG_CONFIG_HOME", origXDG)
+
+	cfg := &Config{
+		WorklogFile: "/tmp/tasks.ics",
+		Tempo: TempoConfig{
+			BaseURL:   "https://api.tempo.io/core/3",
+			Token:     "secret",
+			AccountID: "abc-123",
+		},
+	}
+	if err := SaveConfig(cfg); err != nil {
+		t.Fatalf("SaveConfig: %v", err)
+	}
+
+	loaded, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig after save: %v", err)
+	}
+	if loaded.WorklogFile != cfg.WorklogFile {
+		t.Errorf("worklog_file: got %q, want %q", loaded.WorklogFile, cfg.WorklogFile)
+	}
+	if loaded.Tempo.Token != cfg.Tempo.Token {
+		t.Errorf("token: got %q, want %q", loaded.Tempo.Token, cfg.Tempo.Token)
+	}
+}
+
+func TestConfigGetSet(t *testing.T) {
+	cfg := &Config{}
+
+	// Set and get worklog_file
+	if err := cfg.Set("worklog_file", "/path/to/tasks.ics"); err != nil {
+		t.Fatalf("Set worklog_file: %v", err)
+	}
+	val, err := cfg.Get("worklog_file")
+	if err != nil {
+		t.Fatalf("Get worklog_file: %v", err)
+	}
+	if val != "/path/to/tasks.ics" {
+		t.Errorf("worklog_file: got %q", val)
+	}
+
+	// Token is hidden by default
+	cfg.Tempo.Token = "secret"
+	val, err = cfg.Get("tempo.token")
+	if err != nil {
+		t.Fatalf("Get tempo.token: %v", err)
+	}
+	if val != "<hidden>" {
+		t.Errorf("expected <hidden>, got %q", val)
+	}
+
+	// Unmasked token
+	val, err = cfg.GetUnmasked("tempo.token")
+	if err != nil {
+		t.Fatalf("GetUnmasked tempo.token: %v", err)
+	}
+	if val != "secret" {
+		t.Errorf("expected secret, got %q", val)
+	}
+
+	// Empty token returns empty, not <hidden>
+	cfg.Tempo.Token = ""
+	val, err = cfg.Get("tempo.token")
+	if err != nil {
+		t.Fatalf("Get empty token: %v", err)
+	}
+	if val != "" {
+		t.Errorf("expected empty, got %q", val)
+	}
+
+	// Unknown key
+	_, err = cfg.Get("unknown")
+	if err == nil {
+		t.Error("expected error for unknown key")
+	}
+	if err := cfg.Set("unknown", "x"); err == nil {
+		t.Error("expected error for unknown key set")
+	}
+}
+
+func TestIsValidConfigKey(t *testing.T) {
+	for _, key := range []string{"worklog_file", "tempo.base_url", "tempo.token", "tempo.account_id"} {
+		if !isValidConfigKey(key) {
+			t.Errorf("expected %q to be valid", key)
+		}
+	}
+	if isValidConfigKey("bogus") {
+		t.Error("expected bogus to be invalid")
+	}
+}
+
+func TestExpandTilde(t *testing.T) {
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", "/home/testuser")
+	defer os.Setenv("HOME", origHome)
+
+	got := expandTilde("~/tasks.ics")
+	want := filepath.Join("/home", "testuser", "tasks.ics")
+	if got != want {
+		t.Errorf("expandTilde: got %q, want %q", got, want)
+	}
+
+	got = expandTilde("/absolute/path.ics")
+	if got != "/absolute/path.ics" {
+		t.Errorf("expandTilde absolute: got %q", got)
+	}
+}
+
 func TestLoadWorklogConfigFallback(t *testing.T) {
 	// Create a temp ics file and temp config pointing to it
 	tmpDir := t.TempDir()

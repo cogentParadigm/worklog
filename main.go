@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -34,6 +35,8 @@ func printTopLevelUsage() {
 	fmt.Println("  time    Manage time entries")
 	fmt.Println("  report  Generate reports")
 	fmt.Println("  jira    Sync time entries to Jira/Tempo")
+	fmt.Println("  config  Manage configuration")
+	fmt.Println("  init    Initialize configuration")
 }
 
 func printTaskUsage() {
@@ -67,6 +70,15 @@ func printReportUsage() {
 	fmt.Println("  timesheet  Generate a timesheet report")
 }
 
+func printConfigUsage() {
+	fmt.Println("Usage: worklog config <subcommand> [<args>]")
+	fmt.Println("")
+	fmt.Println("Available config subcommands:")
+	fmt.Println("  path    Print config file path")
+	fmt.Println("  get     Get a config value")
+	fmt.Println("  set     Set a config value")
+}
+
 func configureFlagSet(fs *flag.FlagSet, description, examples string) {
 	fs.SetOutput(os.Stdout)
 	fs.Usage = func() {
@@ -95,7 +107,7 @@ func loadWorklog(flagValue string) (*Worklog, error) {
 	if err != nil {
 		cfg, cfgErr := LoadConfig()
 		if cfgErr == nil && cfg.WorklogFile != "" {
-			filePath = cfg.WorklogFile
+			filePath = expandTilde(cfg.WorklogFile)
 		} else {
 			return nil, err
 		}
@@ -400,6 +412,10 @@ func run(args []string) error {
 		}
 	case "jira":
 		return runJira(args[1:])
+	case "config":
+		return runConfig(args[1:])
+	case "init":
+		return runInit(args[1:])
 	case "report":
 		if len(args) < 2 {
 			printReportUsage()
@@ -836,4 +852,267 @@ func parseDurationFlag(value string) (int, error) {
 		return seconds, nil
 	}
 	return 0, fmt.Errorf("invalid duration format: %s (use Go duration like 30m, 1h30m, or seconds)", value)
+}
+
+func runConfig(args []string) error {
+	if len(args) < 1 {
+		printConfigUsage()
+		return fmt.Errorf("no config subcommand provided")
+	}
+	if isHelpFlag(args[0]) {
+		printConfigUsage()
+		return flag.ErrHelp
+	}
+
+	switch args[0] {
+	case "path":
+		fmt.Println(configPath())
+		return nil
+	case "get":
+		return runConfigGet(args[1:])
+	case "set":
+		return runConfigSet(args[1:])
+	default:
+		return fmt.Errorf("unknown config subcommand '%s'", args[0])
+	}
+}
+
+func runConfigGet(args []string) error {
+	getCommand := flag.NewFlagSet("config get", flag.ContinueOnError)
+	show := getCommand.Bool("show", false, "Show unmasked secret values")
+	configureFlagSet(getCommand, "Get a config value by key.", "  worklog config get worklog_file\n  worklog config get --show tempo.token")
+	if err := getCommand.Parse(args); err != nil {
+		return err
+	}
+	if getCommand.NArg() != 1 {
+		return fmt.Errorf("expected exactly one key argument")
+	}
+	key := getCommand.Arg(0)
+	if !isValidConfigKey(key) {
+		return fmt.Errorf("unknown config key: %s", key)
+	}
+
+	cfg, err := LoadConfig()
+	if err != nil {
+		return err
+	}
+
+	var value string
+	if *show {
+		value, err = cfg.GetUnmasked(key)
+	} else {
+		value, err = cfg.Get(key)
+	}
+	if err != nil {
+		return err
+	}
+	fmt.Println(value)
+	return nil
+}
+
+func runConfigSet(args []string) error {
+	setCommand := flag.NewFlagSet("config set", flag.ContinueOnError)
+	configureFlagSet(setCommand, "Set a config value by key.", "  worklog config set worklog_file ~/tasks.ics\n  worklog config set tempo.token pass:worklog/tempo-token")
+	if err := setCommand.Parse(args); err != nil {
+		return err
+	}
+	if setCommand.NArg() != 2 {
+		return fmt.Errorf("expected key and value arguments")
+	}
+	key := setCommand.Arg(0)
+	value := setCommand.Arg(1)
+	if !isValidConfigKey(key) {
+		return fmt.Errorf("unknown config key: %s", key)
+	}
+
+	cfg, err := LoadConfig()
+	if err != nil {
+		return err
+	}
+
+	if err := cfg.Set(key, value); err != nil {
+		return err
+	}
+
+	if key == "worklog_file" && value != "" {
+		expanded := expandTilde(value)
+		dir := filepath.Dir(expanded)
+		if info, err := os.Stat(dir); err != nil || !info.IsDir() {
+			if err := os.MkdirAll(dir, 0755); err != nil {
+				return fmt.Errorf("worklog_file parent directory %s is not writable: %w", dir, err)
+			}
+		}
+	}
+
+	if key == "tempo.base_url" && value != "" {
+		if !strings.HasPrefix(value, "http://") && !strings.HasPrefix(value, "https://") {
+			return fmt.Errorf("tempo.base_url must start with http:// or https://")
+		}
+	}
+
+	if err := SaveConfig(cfg); err != nil {
+		return err
+	}
+
+	if key == "tempo.token" && value != "" && !strings.HasPrefix(value, "pass:") {
+		fmt.Fprintln(os.Stderr, "Tip: store this in pass and set to pass:worklog/tempo-token for better security.")
+	}
+
+	fmt.Println("Config updated.")
+	return nil
+}
+
+func detectKTimeTrackerFiles() []string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil
+	}
+
+	var candidates []string
+	patterns := []string{
+		filepath.Join(home, ".local", "share", "ktimetracker", "*.ics"),
+		filepath.Join(home, ".kde", "share", "apps", "ktimetracker", "*.ics"),
+		filepath.Join(home, "*.ics"),
+	}
+
+	for _, pattern := range patterns {
+		matches, _ := filepath.Glob(pattern)
+		for _, m := range matches {
+			found := false
+			for _, c := range candidates {
+				if c == m {
+					found = true
+					break
+				}
+			}
+			if !found {
+				candidates = append(candidates, m)
+			}
+		}
+	}
+	return candidates
+}
+
+func createSkeletonICS(path string) error {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("create directory: %w", err)
+	}
+	cal := ics.NewCalendar()
+	cal.SetProductId("-//Worklog//Worklog//EN")
+	cal.SetVersion("2.0")
+	return os.WriteFile(path, []byte(cal.Serialize()), 0644)
+}
+
+func runInit(args []string) error {
+	initCommand := flag.NewFlagSet("init", flag.ContinueOnError)
+	worklogFileFlag := initCommand.String("worklog-file", "", "Default worklog .ics file path")
+	tempoBaseURL := initCommand.String("tempo-base-url", "https://api.tempo.io/core/3", "Tempo Cloud base URL")
+	tempoAccountID := initCommand.String("tempo-account-id", "", "Atlassian account ID")
+	tempoToken := initCommand.String("tempo-token", "", "Tempo API token")
+	skipTempo := initCommand.Bool("skip-tempo", false, "Skip Tempo configuration")
+	force := initCommand.Bool("force", false, "Overwrite existing config")
+	configureFlagSet(initCommand, "Initialize worklog configuration.", "  worklog init\n  worklog init --worklog-file ~/tasks.ics\n  worklog init --worklog-file ~/tasks.ics --tempo-token pass:worklog/token")
+	if err := initCommand.Parse(args); err != nil {
+		return err
+	}
+
+	path := configPath()
+	if _, err := os.Stat(path); err == nil && !*force {
+		return fmt.Errorf("config already exists at %s; use --force to overwrite", path)
+	}
+
+	cfg := &Config{}
+	var filePath string
+
+	if *worklogFileFlag != "" {
+		// Non-interactive mode
+		filePath = *worklogFileFlag
+		if !*skipTempo {
+			cfg.Tempo.BaseURL = *tempoBaseURL
+			cfg.Tempo.AccountID = *tempoAccountID
+			cfg.Tempo.Token = *tempoToken
+		}
+	} else {
+		// Interactive mode
+		detected := detectKTimeTrackerFiles()
+		defaultPath := ""
+		if len(detected) > 0 {
+			fmt.Println("Detected existing KTimeTracker files:")
+			for i, f := range detected {
+				fmt.Printf("  %d. %s\n", i+1, f)
+			}
+			fmt.Println()
+			defaultPath = detected[0]
+		} else {
+			home, _ := os.UserHomeDir()
+			defaultPath = filepath.Join(home, "worklog.ics")
+		}
+
+		fmt.Printf("Enter default worklog file path [%s]: ", defaultPath)
+		var input string
+		fmt.Scanln(&input)
+		input = strings.TrimSpace(input)
+		if input == "" {
+			filePath = defaultPath
+		} else if n, err := strconv.Atoi(input); err == nil && n >= 1 && n <= len(detected) {
+			filePath = detected[n-1]
+		} else {
+			filePath = input
+		}
+
+		// Create file if needed
+		expanded := expandTilde(filePath)
+		if _, err := os.Stat(expanded); os.IsNotExist(err) {
+			fmt.Printf("File does not exist. Create %s? [Y/n] ", filePath)
+			var response string
+			fmt.Scanln(&response)
+			if strings.ToLower(strings.TrimSpace(response)) != "n" {
+				if err := createSkeletonICS(expanded); err != nil {
+					return fmt.Errorf("create skeleton .ics file: %w", err)
+				}
+				fmt.Printf("Created %s\n", filePath)
+			}
+		}
+
+		fmt.Print("Configure Tempo (Jira) integration? [y/N] ")
+		var tempoResponse string
+		fmt.Scanln(&tempoResponse)
+		if strings.ToLower(strings.TrimSpace(tempoResponse)) == "y" {
+			fmt.Printf("Tempo base URL [%s]: ", *tempoBaseURL)
+			var urlInput string
+			fmt.Scanln(&urlInput)
+			if strings.TrimSpace(urlInput) != "" {
+				*tempoBaseURL = strings.TrimSpace(urlInput)
+			}
+			fmt.Print("Atlassian account ID: ")
+			fmt.Scanln(&cfg.Tempo.AccountID)
+			fmt.Print("Tempo API token: ")
+			fmt.Scanln(&cfg.Tempo.Token)
+			cfg.Tempo.BaseURL = *tempoBaseURL
+			if cfg.Tempo.Token != "" && !strings.HasPrefix(cfg.Tempo.Token, "pass:") {
+				fmt.Fprintln(os.Stderr, "Tip: store this in pass and set to pass:worklog/tempo-token for better security.")
+			}
+		}
+	}
+
+	cfg.WorklogFile = filePath
+
+	// Expand and create file in non-interactive mode if needed
+	if *worklogFileFlag != "" {
+		expanded := expandTilde(filePath)
+		if _, err := os.Stat(expanded); os.IsNotExist(err) {
+			if err := createSkeletonICS(expanded); err != nil {
+				return fmt.Errorf("create skeleton .ics file: %w", err)
+			}
+			fmt.Printf("Created %s\n", filePath)
+		}
+	}
+
+	if err := SaveConfig(cfg); err != nil {
+		return err
+	}
+
+	fmt.Printf("Config written to %s\n", path)
+	return nil
 }

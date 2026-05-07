@@ -37,7 +37,10 @@ go build .
 ## Quick Start
 
 ```bash
-# Set the default file path via environment variable
+# Initialize configuration (creates ~/.config/worklog/config.yaml)
+worklog init
+
+# Or set the default file path via environment variable
 export WORKLOG_FILE=~/my-tasks.ics
 
 # List all tasks (sorted alphabetically, showing hierarchy)
@@ -57,6 +60,59 @@ worklog task create -file ~/source.ics -output ~/backup.ics -name "Backup task"
 ```
 
 ## Usage
+
+### `init`
+
+Initializes the worklog configuration interactively or via flags. Detects existing KTimeTracker `.ics` files and suggests them as the default worklog file. Creates a skeleton `.ics` file if one does not exist.
+
+**Flags:**
+- `--worklog-file` — Default worklog `.ics` file path (skips interactive prompts when provided).
+- `--tempo-base-url` — Tempo Cloud base URL (default: `https://api.tempo.io/core/3`).
+- `--tempo-account-id` — Atlassian account ID.
+- `--tempo-token` — Tempo API token.
+- `--skip-tempo` — Skip Tempo configuration.
+- `--force` — Overwrite an existing config file.
+
+**Examples:**
+```bash
+# Interactive wizard
+worklog init
+
+# Non-interactive
+worklog init --worklog-file ~/tasks.ics
+worklog init --worklog-file ~/tasks.ics --tempo-token pass:worklog/tempo-token
+```
+
+### `config path`
+
+Prints the resolved path to `config.yaml`.
+
+```bash
+worklog config path
+```
+
+### `config get`
+
+Retrieves a config value by dot-notation key. Secrets are masked by default.
+
+**Flags:**
+- `--show` — Reveal unmasked secret values (e.g., `tempo.token`).
+
+```bash
+worklog config get worklog_file
+worklog config get tempo.token
+worklog config get --show tempo.token
+```
+
+### `config set`
+
+Updates a config value by dot-notation key and writes the file. Validates URLs and paths automatically.
+
+```bash
+worklog config set worklog_file ~/tasks.ics
+worklog config set tempo.token pass:worklog/tempo-token
+worklog config set tempo.account_id abc-123
+```
 
 ### `task list`
 
@@ -286,6 +342,8 @@ Worklog reads an optional YAML config file from the standard config directory:
 - macOS: `~/Library/Application Support/worklog/config.yaml`
 
 Override the directory with the `XDG_CONFIG_HOME` environment variable.
+
+Use `worklog init` to create the initial config interactively, or `worklog config` to read and update values without opening an editor.
 
 **Example `config.yaml`:**
 ```yaml
