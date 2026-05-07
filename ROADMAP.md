@@ -34,7 +34,9 @@ Manual time entry and reporting before automation.
 - [x] Export reports to various formats (CSV, JSON, text)
   - `--format table` (default) and `--format csv`
   - `--decimal` flag for decimal hour display (e.g., 1.50)
-- [ ] Filter and query time entries by date range or task
+- [x] Filter and query time entries by date range or task
+  - `time list` with `-from`, `-to`, `-search`, and `-task` filters
+  - `task list` with `-search` and `-parent` filters
 
 ## Phase 3: Integration System
 

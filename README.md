@@ -63,10 +63,14 @@ Lists all tasks sorted alphabetically by name, displaying the parent/child hiera
 
 **Flags:**
 - `-file` — Path to the `.ics` file (overrides `WORKLOG_FILE` environment variable).
+- `-search` — Filter tasks by case-insensitive search in name or description (shows matching tasks as a flat list).
+- `-parent` — Show only the specified task and its descendants.
 
 ```bash
 worklog task list
 worklog task list -file ~/my-tasks.ics
+worklog task list -search planning
+worklog task list -parent <parent-uuid>
 ```
 
 ### `task create`
@@ -152,16 +156,22 @@ worklog time add -task <uuid> -duration 3600s -comment "Reviewed with team"
 
 ### `time list`
 
-Lists time entries sorted by start time (most recent first). Optionally filter to a specific task.
+Lists time entries sorted by start time (most recent first). Supports filtering by task, date range, or search query.
 
 **Flags:**
 - `-file` — Path to the `.ics` file (overrides `WORKLOG_FILE` environment variable).
 - `-task` — Filter to a specific task UUID (optional).
+- `-from` — Filter events starting on or after this date (`YYYY-MM-DD`, optional).
+- `-to` — Filter events starting on or before this date (`YYYY-MM-DD`, optional).
+- `-search` — Filter by case-insensitive search in task name, description, or comment (optional).
 
-**Example:**
+**Examples:**
 ```bash
 worklog time list
 worklog time list -file ~/tasks.ics -task <uuid>
+worklog time list -from 2023-08-01 -to 2023-08-15
+worklog time list -search meeting
+worklog time list -task <uuid> -from 2023-08-01 -search review
 ```
 
 ### `time edit`
