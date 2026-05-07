@@ -1,3 +1,10 @@
+# [0.15.0](https://github.com/cogentParadigm/worklog/compare/v0.14.0...v0.15.0) (2026-05-07)
+
+
+### Features
+
+* add config management commands ([6e7b7de](https://github.com/cogentParadigm/worklog/commit/6e7b7dece4cb8adb96efbdc6fb7135de075f1800))
+
 # [0.14.0](https://github.com/cogentParadigm/worklog/compare/v0.13.0...v0.14.0) (2026-05-07)
 
 
