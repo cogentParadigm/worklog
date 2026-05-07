@@ -1,3 +1,11 @@
+# [0.13.0](https://github.com/cogentParadigm/worklog/compare/v0.12.0...v0.13.0) (2026-05-07)
+
+
+### Features
+
+* add Jira/Tempo sync with per-task per-day aggregation ([65fcffb](https://github.com/cogentParadigm/worklog/commit/65fcffbcee204731cccb7349ad8cddbacfbfbb71))
+* add XDG config loading with optional pass: prefix support ([9c2963c](https://github.com/cogentParadigm/worklog/commit/9c2963c2e4a5ba5f32c62fdc2e5e1ac5553b8dfe))
+
 # [0.12.0](https://github.com/cogentParadigm/worklog/compare/v0.11.1...v0.12.0) (2026-05-07)
 
 
