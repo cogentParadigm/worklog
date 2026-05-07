@@ -108,7 +108,11 @@ func (worklog *Worklog) UpdateTask(uuid string, update TaskUpdate) error {
 		if *update.Name == "" {
 			return fmt.Errorf("cannot clear task name")
 		}
+		oldKey := task.IssueKey()
 		task.name = *update.Name
+		if task.IssueKey() != oldKey {
+			task.ClearIssueID()
+		}
 	}
 	if update.Description != nil {
 		task.description = *update.Description

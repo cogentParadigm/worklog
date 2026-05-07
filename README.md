@@ -70,7 +70,10 @@ Initializes the worklog configuration interactively or via flags. Detects existi
 - `--tempo-base-url` — Tempo Cloud base URL (default: `https://api.tempo.io/4`).
 - `--tempo-account-id` — Atlassian account ID.
 - `--tempo-token` — Tempo API token.
+- `--jira-base-url` — Jira base URL.
+- `--jira-token` — Jira API token.
 - `--skip-tempo` — Skip Tempo configuration.
+- `--skip-jira` — Skip Jira configuration.
 - `--force` — Overwrite an existing config file.
 
 **Examples:**
@@ -80,7 +83,7 @@ worklog init
 
 # Non-interactive
 worklog init --worklog-file ~/tasks.ics
-worklog init --worklog-file ~/tasks.ics --tempo-token pass:worklog/tempo-token
+worklog init --worklog-file ~/tasks.ics --tempo-token pass:worklog/tempo-token --jira-token pass:worklog/jira-token
 ```
 
 ### `config path`
@@ -300,7 +303,9 @@ worklog report timesheet -all -hide-empty
 
 ### `jira sync`
 
-Syncs time entries to Tempo Cloud (Jira). Entries are **merged by task and date** before sending: multiple small entries on the same day for the same task are summed into a single worklog with combined comments. By default, only unsynced entries are sent. Issue keys are auto-detected from task names (e.g., `PROJ-123`) or set explicitly via `-issue-key`.
+Syncs time entries to Tempo Cloud (Jira). Entries are **merged by task and date** before sending: multiple small entries on the same day for the same task are summed into a single worklog with combined comments. By default, only unsynced entries are sent.
+
+Issue keys are auto-detected from task names (e.g., `PROJ-123`) or set explicitly via `-issue-key`. Before sending, issue keys are resolved to numeric Jira issue IDs via the Jira REST API. Resolved IDs are cached on the task as `X-WORKLOG-ISSUE-ID` so subsequent syncs skip the lookup.
 
 **Flags:**
 - `-file` — Path to the `.ics` file (overrides `WORKLOG_FILE`).
@@ -353,13 +358,21 @@ tempo:
   base_url: https://api.tempo.io/4
   token: my-api-token
   account_id: your-atlassian-account-id
+
+jira:
+  base_url: https://mycompany.atlassian.net
+  token: my-jira-token
 ```
 
-**Credential security:** The `token` field supports a `pass:` prefix to read secrets from the [`pass`](https://www.passwordstore.org/) password store:
+**Credential security:** The `token` fields support a `pass:` prefix to read secrets from the [`pass`](https://www.passwordstore.org/) password store:
 ```yaml
 tempo:
   token: "pass:worklog/tempo-token"
+jira:
+  token: "pass:worklog/jira-token"
 ```
+
+For Jira Cloud, the `jira.token` should be formatted as `email:api_token` (used with Basic auth). For Jira Data Center or Personal Access Tokens, provide the token directly (used with Bearer auth).
 
 ## File I/O
 

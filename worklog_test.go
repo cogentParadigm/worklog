@@ -344,6 +344,38 @@ func TestUpdateTaskNoChanges(t *testing.T) {
 	}
 }
 
+func TestUpdateTaskClearsIssueIDWhenKeyChanges(t *testing.T) {
+	worklog := createTestWorklog()
+	task := NewTask("Work on PROJ-123")
+	task.SetIssueID("10001")
+	worklog.tasks = append(worklog.tasks, task)
+
+	newName := "Work on PROJ-456"
+	err := worklog.UpdateTask(task.uuid, TaskUpdate{Name: &newName})
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if task.IssueID() != "" {
+		t.Errorf("expected cached issue ID to be cleared when issue key changes, got %q", task.IssueID())
+	}
+}
+
+func TestUpdateTaskKeepsIssueIDWhenKeyUnchanged(t *testing.T) {
+	worklog := createTestWorklog()
+	task := NewTask("Work on PROJ-123")
+	task.SetIssueID("10001")
+	worklog.tasks = append(worklog.tasks, task)
+
+	newName := "More work on PROJ-123"
+	err := worklog.UpdateTask(task.uuid, TaskUpdate{Name: &newName})
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if task.IssueID() != "10001" {
+		t.Errorf("expected cached issue ID to remain when issue key unchanged, got %q", task.IssueID())
+	}
+}
+
 func TestIsDescendantOf(t *testing.T) {
 	// Create: grandparent -> parent -> child, and sibling (under parent)
 	grandparent := NewTask("grandparent")

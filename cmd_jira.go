@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cogentParadigm/worklog/internal/jira"
 	"github.com/cogentParadigm/worklog/internal/tempo"
 )
 
@@ -86,6 +87,15 @@ func runJiraSync(args []string) error {
 
 	client := tempo.NewClient(baseURL, token, cfg.Tempo.AccountID)
 
+	jiraToken, err := cfg.ResolveJiraToken()
+	if err != nil {
+		return fmt.Errorf("jira configuration: %w", err)
+	}
+	var jiraClient *jira.Client
+	if cfg.Jira.BaseURL != "" {
+		jiraClient = jira.NewClient(cfg.Jira.BaseURL, jiraToken)
+	}
+
 	var fromDay, toDay time.Time
 	if *syncFrom != "" {
 		fromDay, err = parseDateFlag(*syncFrom)
@@ -149,8 +159,20 @@ func runJiraSync(args []string) error {
 	}
 
 	for _, e := range entries {
+		issueID := e.task.IssueID()
+		if issueID == "" {
+			if jiraClient == nil {
+				return fmt.Errorf("jira.base_url and jira.token required to resolve issue key %s", e.issueKey)
+			}
+			id, err := jiraClient.GetIssueID(e.issueKey)
+			if err != nil {
+				return fmt.Errorf("resolve issue key %s: %w", e.issueKey, err)
+			}
+			e.task.SetIssueID(id)
+			issueID = id
+		}
 		wl := tempo.Worklog{
-			IssueId:          e.issueKey,
+			IssueId:          issueID,
 			TimeSpentSeconds: e.duration,
 			StartDate:        e.start.Format("2006-01-02"),
 			StartTime:        e.start.Format("15:04:05"),

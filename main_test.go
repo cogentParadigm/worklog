@@ -631,3 +631,29 @@ func TestInitForceOverwrites(t *testing.T) {
 		t.Errorf("config not overwritten")
 	}
 }
+
+func TestInitSetsJiraConfig(t *testing.T) {
+	tmpDir := t.TempDir()
+	origXDG := os.Getenv("XDG_CONFIG_HOME")
+	os.Setenv("XDG_CONFIG_HOME", tmpDir)
+	defer os.Setenv("XDG_CONFIG_HOME", origXDG)
+
+	icsPath := filepath.Join(tmpDir, "worklog.ics")
+	err := run([]string{
+		"init", "--worklog-file", icsPath,
+		"--jira-base-url", "https://jira.example.com",
+		"--jira-token", "jira-secret",
+	})
+	if err != nil {
+		t.Fatalf("init: %v", err)
+	}
+
+	configFile := filepath.Join(tmpDir, "worklog", "config.yaml")
+	data, _ := os.ReadFile(configFile)
+	if !strings.Contains(string(data), "https://jira.example.com") {
+		t.Errorf("config missing jira.base_url")
+	}
+	if !strings.Contains(string(data), "jira-secret") {
+		t.Errorf("config missing jira.token")
+	}
+}

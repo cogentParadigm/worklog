@@ -686,7 +686,7 @@ func runTaskUpdate(args []string) error {
 		task := worklog.FindTaskByUUID(*updateUUID)
 		var newProps []ics.IANAProperty
 		for _, prop := range task.properties {
-			if prop.IANAToken != "X-WORKLOG-ISSUE-KEY" {
+			if prop.IANAToken != "X-WORKLOG-ISSUE-KEY" && prop.IANAToken != "X-WORKLOG-ISSUE-ID" {
 				newProps = append(newProps, prop)
 			}
 		}
@@ -944,9 +944,9 @@ func runConfigSet(args []string) error {
 		}
 	}
 
-	if key == "tempo.base_url" && value != "" {
+	if (key == "tempo.base_url" || key == "jira.base_url") && value != "" {
 		if !strings.HasPrefix(value, "http://") && !strings.HasPrefix(value, "https://") {
-			return fmt.Errorf("tempo.base_url must start with http:// or https://")
+			return fmt.Errorf("%s must start with http:// or https://", key)
 		}
 	}
 
@@ -954,8 +954,8 @@ func runConfigSet(args []string) error {
 		return err
 	}
 
-	if key == "tempo.token" && value != "" && !strings.HasPrefix(value, "pass:") {
-		fmt.Fprintln(os.Stderr, "Tip: store this in pass and set to pass:worklog/tempo-token for better security.")
+	if (key == "tempo.token" || key == "jira.token") && value != "" && !strings.HasPrefix(value, "pass:") {
+		fmt.Fprintf(os.Stderr, "Tip: store this in pass and set to pass:worklog/%s for better security.\n", strings.Replace(key, ".", "-", 1))
 	}
 
 	fmt.Println("Config updated.")
@@ -1010,9 +1010,12 @@ func runInit(args []string) error {
 	tempoBaseURL := initCommand.String("tempo-base-url", "https://api.tempo.io/4", "Tempo Cloud base URL")
 	tempoAccountID := initCommand.String("tempo-account-id", "", "Atlassian account ID")
 	tempoToken := initCommand.String("tempo-token", "", "Tempo API token")
+	jiraBaseURL := initCommand.String("jira-base-url", "", "Jira base URL")
+	jiraToken := initCommand.String("jira-token", "", "Jira API token")
 	skipTempo := initCommand.Bool("skip-tempo", false, "Skip Tempo configuration")
+	skipJira := initCommand.Bool("skip-jira", false, "Skip Jira configuration")
 	force := initCommand.Bool("force", false, "Overwrite existing config")
-	configureFlagSet(initCommand, "Initialize worklog configuration.", "  worklog init\n  worklog init --worklog-file ~/tasks.ics\n  worklog init --worklog-file ~/tasks.ics --tempo-token pass:worklog/token")
+	configureFlagSet(initCommand, "Initialize worklog configuration.", "  worklog init\n  worklog init --worklog-file ~/tasks.ics\n  worklog init --worklog-file ~/tasks.ics --tempo-token pass:worklog/token --jira-token pass:worklog/jira-token")
 	if err := initCommand.Parse(args); err != nil {
 		return err
 	}
@@ -1032,6 +1035,10 @@ func runInit(args []string) error {
 			cfg.Tempo.BaseURL = *tempoBaseURL
 			cfg.Tempo.AccountID = *tempoAccountID
 			cfg.Tempo.Token = *tempoToken
+		}
+		if !*skipJira {
+			cfg.Jira.BaseURL = *jiraBaseURL
+			cfg.Jira.Token = *jiraToken
 		}
 	} else {
 		// Interactive mode
@@ -1075,7 +1082,7 @@ func runInit(args []string) error {
 			}
 		}
 
-		fmt.Print("Configure Tempo (Jira) integration? [y/N] ")
+		fmt.Print("Configure Tempo integration? [y/N] ")
 		var tempoResponse string
 		fmt.Scanln(&tempoResponse)
 		if strings.ToLower(strings.TrimSpace(tempoResponse)) == "y" {
@@ -1092,6 +1099,19 @@ func runInit(args []string) error {
 			cfg.Tempo.BaseURL = *tempoBaseURL
 			if cfg.Tempo.Token != "" && !strings.HasPrefix(cfg.Tempo.Token, "pass:") {
 				fmt.Fprintln(os.Stderr, "Tip: store this in pass and set to pass:worklog/tempo-token for better security.")
+			}
+		}
+
+		fmt.Print("Configure Jira integration? [y/N] ")
+		var jiraResponse string
+		fmt.Scanln(&jiraResponse)
+		if strings.ToLower(strings.TrimSpace(jiraResponse)) == "y" {
+			fmt.Print("Jira base URL: ")
+			fmt.Scanln(&cfg.Jira.BaseURL)
+			fmt.Print("Jira API token: ")
+			fmt.Scanln(&cfg.Jira.Token)
+			if cfg.Jira.Token != "" && !strings.HasPrefix(cfg.Jira.Token, "pass:") {
+				fmt.Fprintln(os.Stderr, "Tip: store this in pass and set to pass:worklog/jira-token for better security.")
 			}
 		}
 	}

@@ -71,6 +71,9 @@ tempo:
   base_url: https://custom.tempo.io
   token: my-secret-token
   account_id: abc-123
+jira:
+  base_url: https://mycompany.atlassian.net
+  token: jira-secret-token
 `
 	configDir := filepath.Join(tmpDir, "worklog")
 	if err := os.MkdirAll(configDir, 0755); err != nil {
@@ -97,6 +100,12 @@ tempo:
 	if cfg.Tempo.AccountID != "abc-123" {
 		t.Errorf("account_id: got %q, want %q", cfg.Tempo.AccountID, "abc-123")
 	}
+	if cfg.Jira.BaseURL != "https://mycompany.atlassian.net" {
+		t.Errorf("jira.base_url: got %q, want %q", cfg.Jira.BaseURL, "https://mycompany.atlassian.net")
+	}
+	if cfg.Jira.Token != "jira-secret-token" {
+		t.Errorf("jira.token: got %q, want %q", cfg.Jira.Token, "jira-secret-token")
+	}
 }
 
 func TestResolveTempoToken(t *testing.T) {
@@ -113,6 +122,23 @@ func TestResolveTempoToken(t *testing.T) {
 	}
 	if tok != "plain-token" {
 		t.Errorf("plain token: got %q, want %q", tok, "plain-token")
+	}
+}
+
+func TestResolveJiraToken(t *testing.T) {
+	cfg := &Config{Jira: JiraConfig{Token: ""}}
+	_, err := cfg.ResolveJiraToken()
+	if err == nil {
+		t.Error("expected error for empty jira token")
+	}
+
+	cfg.Jira.Token = "plain-jira-token"
+	tok, err := cfg.ResolveJiraToken()
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if tok != "plain-jira-token" {
+		t.Errorf("plain token: got %q, want %q", tok, "plain-jira-token")
 	}
 }
 
@@ -276,6 +302,25 @@ func TestConfigGetSet(t *testing.T) {
 		t.Errorf("expected empty, got %q", val)
 	}
 
+	// Jira token hidden by default
+	cfg.Jira.Token = "jira-secret"
+	val, err = cfg.Get("jira.token")
+	if err != nil {
+		t.Fatalf("Get jira.token: %v", err)
+	}
+	if val != "<hidden>" {
+		t.Errorf("expected <hidden>, got %q", val)
+	}
+
+	// Unmasked jira token
+	val, err = cfg.GetUnmasked("jira.token")
+	if err != nil {
+		t.Fatalf("GetUnmasked jira.token: %v", err)
+	}
+	if val != "jira-secret" {
+		t.Errorf("expected jira-secret, got %q", val)
+	}
+
 	// Unknown key
 	_, err = cfg.Get("unknown")
 	if err == nil {
@@ -287,7 +332,7 @@ func TestConfigGetSet(t *testing.T) {
 }
 
 func TestIsValidConfigKey(t *testing.T) {
-	for _, key := range []string{"worklog_file", "tempo.base_url", "tempo.token", "tempo.account_id"} {
+	for _, key := range []string{"worklog_file", "tempo.base_url", "tempo.token", "tempo.account_id", "jira.base_url", "jira.token"} {
 		if !isValidConfigKey(key) {
 			t.Errorf("expected %q to be valid", key)
 		}

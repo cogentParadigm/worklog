@@ -40,6 +40,65 @@ func TestTaskIssueKeyNumbersInProject(t *testing.T) {
 	}
 }
 
+func TestTaskIssueID(t *testing.T) {
+	task := &Task{
+		name: "Review PROJ-123 code",
+		properties: []ics.IANAProperty{
+			{BaseProperty: ics.BaseProperty{IANAToken: "X-WORKLOG-ISSUE-ID", Value: "10001"}},
+		},
+	}
+	if got := task.IssueID(); got != "10001" {
+		t.Errorf("issue id: got %q, want %q", got, "10001")
+	}
+}
+
+func TestTaskIssueIDEmpty(t *testing.T) {
+	task := &Task{name: "General task"}
+	if got := task.IssueID(); got != "" {
+		t.Errorf("expected empty issue id, got %q", got)
+	}
+}
+
+func TestTaskSetIssueID(t *testing.T) {
+	task := &Task{name: "Test"}
+	task.SetIssueID("20002")
+	if got := task.IssueID(); got != "20002" {
+		t.Errorf("after SetIssueID: got %q, want %q", got, "20002")
+	}
+}
+
+func TestTaskSetIssueIDUpdatesExisting(t *testing.T) {
+	task := &Task{
+		name: "Test",
+		properties: []ics.IANAProperty{
+			{BaseProperty: ics.BaseProperty{IANAToken: "X-WORKLOG-ISSUE-ID", Value: "100"}},
+		},
+	}
+	task.SetIssueID("200")
+	if got := task.IssueID(); got != "200" {
+		t.Errorf("after update: got %q, want %q", got, "200")
+	}
+	if len(task.properties) != 1 {
+		t.Fatalf("expected 1 property, got %d", len(task.properties))
+	}
+}
+
+func TestTaskClearIssueID(t *testing.T) {
+	task := &Task{
+		name: "Test",
+		properties: []ics.IANAProperty{
+			{BaseProperty: ics.BaseProperty{IANAToken: "X-WORKLOG-ISSUE-ID", Value: "100"}},
+		},
+	}
+	task.ClearIssueID()
+	if got := task.IssueID(); got != "" {
+		t.Errorf("after ClearIssueID: got %q, want empty", got)
+	}
+	if len(task.properties) != 0 {
+		t.Fatalf("expected 0 properties, got %d", len(task.properties))
+	}
+}
+
 func TestEventSyncedAt(t *testing.T) {
 	event := &Event{
 		properties: []ics.IANAProperty{

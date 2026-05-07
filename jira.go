@@ -21,6 +21,37 @@ func (task *Task) IssueKey() string {
 	return ""
 }
 
+func (task *Task) IssueID() string {
+	for _, prop := range task.properties {
+		if prop.IANAToken == "X-WORKLOG-ISSUE-ID" && prop.Value != "" {
+			return prop.Value
+		}
+	}
+	return ""
+}
+
+func (task *Task) SetIssueID(id string) {
+	for i, prop := range task.properties {
+		if prop.IANAToken == "X-WORKLOG-ISSUE-ID" {
+			task.properties[i].Value = id
+			return
+		}
+	}
+	task.properties = append(task.properties, ics.IANAProperty{
+		BaseProperty: ics.BaseProperty{IANAToken: "X-WORKLOG-ISSUE-ID", Value: id},
+	})
+}
+
+func (task *Task) ClearIssueID() {
+	var newProps []ics.IANAProperty
+	for _, prop := range task.properties {
+		if prop.IANAToken != "X-WORKLOG-ISSUE-ID" {
+			newProps = append(newProps, prop)
+		}
+	}
+	task.properties = newProps
+}
+
 func (event *Event) SyncedAt() time.Time {
 	for _, prop := range event.properties {
 		if prop.IANAToken == "X-WORKLOG-SYNCED-AT" {
