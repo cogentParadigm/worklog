@@ -1,3 +1,10 @@
+# [0.16.0](https://github.com/cogentParadigm/worklog/compare/v0.15.0...v0.16.0) (2026-05-07)
+
+
+### Features
+
+* update Tempo API client for v4 base path and payload format ([6b2bdc4](https://github.com/cogentParadigm/worklog/commit/6b2bdc4690ef8e2c556691572ff56c0b0be38507))
+
 # [0.15.0](https://github.com/cogentParadigm/worklog/compare/v0.14.0...v0.15.0) (2026-05-07)
 
 
