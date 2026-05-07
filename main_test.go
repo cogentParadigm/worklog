@@ -262,3 +262,190 @@ func TestHelpReportNamespace(t *testing.T) {
 		t.Errorf("expected report namespace usage, got:\n%s", out)
 	}
 }
+
+func TestRunTimeListDateRange(t *testing.T) {
+	out := captureStdout(func() {
+		err := run([]string{"time", "list", "-file", "testdata/example.ics", "-from", "2023-08-14", "-to", "2023-08-17"})
+		if err != nil {
+			t.Errorf("expected no error, got: %v", err)
+		}
+	})
+	// Should show events from 08/14 and 08/17 (4 total)
+	lines := strings.Split(strings.TrimSpace(out), "\n")
+	if len(lines) < 2 {
+		t.Fatalf("expected at least header and data rows, got:\n%s", out)
+	}
+	// Header is first line, data lines follow
+	dataLines := lines[1:]
+	if len(dataLines) != 4 {
+		t.Errorf("expected 4 events in range, got %d\n%s", len(dataLines), out)
+	}
+}
+
+func TestRunTimeListFromOnly(t *testing.T) {
+	out := captureStdout(func() {
+		err := run([]string{"time", "list", "-file", "testdata/example.ics", "-from", "2023-08-18"})
+		if err != nil {
+			t.Errorf("expected no error, got: %v", err)
+		}
+	})
+	lines := strings.Split(strings.TrimSpace(out), "\n")
+	if len(lines) < 2 {
+		t.Fatalf("expected output, got:\n%s", out)
+	}
+	dataLines := lines[1:]
+	if len(dataLines) != 10 {
+		t.Errorf("expected 10 events on/after 2023-08-18, got %d\n%s", len(dataLines), out)
+	}
+}
+
+func TestRunTimeListInvalidDateRange(t *testing.T) {
+	err := run([]string{"time", "list", "-file", "testdata/example.ics", "-from", "2023-08-18", "-to", "2023-08-14"})
+	if err == nil {
+		t.Fatal("expected error for invalid date range")
+	}
+	if !strings.Contains(err.Error(), "from date must not be after to date") {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+func TestRunTimeListSearchTaskName(t *testing.T) {
+	out := captureStdout(func() {
+		err := run([]string{"time", "list", "-file", "testdata/example.ics", "-search", "stax"})
+		if err != nil {
+			t.Errorf("expected no error, got: %v", err)
+		}
+	})
+	lines := strings.Split(strings.TrimSpace(out), "\n")
+	if len(lines) < 2 {
+		t.Fatalf("expected output, got:\n%s", out)
+	}
+	dataLines := lines[1:]
+	if len(dataLines) != 6 {
+		t.Errorf("expected 6 events matching 'stax', got %d\n%s", len(dataLines), out)
+	}
+	for _, line := range dataLines {
+		if !strings.Contains(line, "stax") {
+			t.Errorf("expected each line to contain 'stax', got: %s", line)
+		}
+	}
+}
+
+func TestRunTimeListSearchNoMatch(t *testing.T) {
+	out := captureStdout(func() {
+		err := run([]string{"time", "list", "-file", "testdata/example.ics", "-search", "nonexistent"})
+		if err != nil {
+			t.Errorf("expected no error, got: %v", err)
+		}
+	})
+	lines := strings.Split(strings.TrimSpace(out), "\n")
+	if len(lines) != 1 {
+		t.Errorf("expected only header for no-match search, got %d lines:\n%s", len(lines), out)
+	}
+	if !strings.Contains(lines[0], "UUID") {
+		t.Errorf("expected header line, got: %s", lines[0])
+	}
+}
+
+func TestRunTaskListSearch(t *testing.T) {
+	out := captureStdout(func() {
+		err := run([]string{"task", "list", "-file", "testdata/example.ics", "-search", "stax"})
+		if err != nil {
+			t.Errorf("expected no error, got: %v", err)
+		}
+	})
+	lines := strings.Split(strings.TrimSpace(out), "\n")
+	if len(lines) < 2 {
+		t.Fatalf("expected output, got:\n%s", out)
+	}
+	// Header + 3 matching tasks
+	if len(lines) != 4 {
+		t.Errorf("expected 3 matching tasks (+header = 4 lines), got %d\n%s", len(lines), out)
+	}
+	for _, line := range lines[1:] {
+		if !strings.Contains(strings.ToLower(line), "stax") {
+			t.Errorf("expected each data line to contain 'stax', got: %s", line)
+		}
+	}
+}
+
+func TestRunTaskListSearchNoMatch(t *testing.T) {
+	out := captureStdout(func() {
+		err := run([]string{"task", "list", "-file", "testdata/example.ics", "-search", "zzzzzzz"})
+		if err != nil {
+			t.Errorf("expected no error, got: %v", err)
+		}
+	})
+	if !strings.Contains(out, "No tasks match the search criteria.") {
+		t.Errorf("expected no-match message, got:\n%s", out)
+	}
+}
+
+func TestRunTaskListParent(t *testing.T) {
+	// a96e0dd3-1321-4bad-a58d-e256e23d44d8 is "08/18" which has 4 children
+	out := captureStdout(func() {
+		err := run([]string{"task", "list", "-file", "testdata/example.ics", "-parent", "a96e0dd3-1321-4bad-a58d-e256e23d44d8"})
+		if err != nil {
+			t.Errorf("expected no error, got: %v", err)
+		}
+	})
+	lines := strings.Split(strings.TrimSpace(out), "\n")
+	if len(lines) < 2 {
+		t.Fatalf("expected output, got:\n%s", out)
+	}
+	// Header + 5 tasks (parent + 4 children)
+	if len(lines) != 6 {
+		t.Errorf("expected 5 tasks (+header = 6 lines), got %d\n%s", len(lines), out)
+	}
+}
+
+func TestRunTaskListParentInvalidUUID(t *testing.T) {
+	err := run([]string{"task", "list", "-file", "testdata/example.ics", "-parent", "invalid-uuid"})
+	if err == nil {
+		t.Fatal("expected error for invalid parent UUID")
+	}
+	if !strings.Contains(err.Error(), "parent task with UUID 'invalid-uuid' not found") {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+func TestRunTaskListParentAndSearch(t *testing.T) {
+	// Parent "08/18" with search "stax" -> should show "08/18 - josh - stax" and "08/18 - stax internal check in"
+	out := captureStdout(func() {
+		err := run([]string{"task", "list", "-file", "testdata/example.ics", "-parent", "a96e0dd3-1321-4bad-a58d-e256e23d44d8", "-search", "stax"})
+		if err != nil {
+			t.Errorf("expected no error, got: %v", err)
+		}
+	})
+	lines := strings.Split(strings.TrimSpace(out), "\n")
+	if len(lines) < 2 {
+		t.Fatalf("expected output, got:\n%s", out)
+	}
+	// Header + 2 matching tasks within subtree
+	if len(lines) != 3 {
+		t.Errorf("expected 2 matching tasks (+header = 3 lines), got %d\n%s", len(lines), out)
+	}
+}
+
+func TestRunTimeListCombinedFilters(t *testing.T) {
+	out := captureStdout(func() {
+		err := run([]string{"time", "list", "-file", "testdata/example.ics", "-from", "2023-08-14", "-to", "2023-08-17", "-search", "ACCPLAN"})
+		if err != nil {
+			t.Errorf("expected no error, got: %v", err)
+		}
+	})
+	lines := strings.Split(strings.TrimSpace(out), "\n")
+	if len(lines) < 2 {
+		t.Fatalf("expected output, got:\n%s", out)
+	}
+	dataLines := lines[1:]
+	// Events in 08/14-08/17 matching ACCPLAN: 2 events on 08/14 for task ace3355a (ACCPLAN-90)
+	if len(dataLines) != 2 {
+		t.Errorf("expected 2 events with combined filters, got %d\n%s", len(dataLines), out)
+	}
+	for _, line := range dataLines {
+		if !strings.Contains(line, "ACCPLAN") {
+			t.Errorf("expected each line to contain 'ACCPLAN', got: %s", line)
+		}
+	}
+}

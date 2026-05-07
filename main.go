@@ -43,6 +43,10 @@ func printTaskUsage() {
 	fmt.Println("  delete  Delete a task")
 }
 
+func matchesSearch(text, query string) bool {
+	return strings.Contains(strings.ToLower(text), strings.ToLower(query))
+}
+
 func printTimeUsage() {
 	fmt.Println("Usage: worklog time <subcommand> [<args>]")
 	fmt.Println("")
@@ -178,7 +182,10 @@ func run(args []string) error {
 			timeListCommand := flag.NewFlagSet("time list", flag.ContinueOnError)
 			timeListFile := timeListCommand.String("file", "", "Path to .ics file (overrides WORKLOG_FILE)")
 			timeListTask := timeListCommand.String("task", "", "Filter to a specific task UUID (optional)")
-			configureFlagSet(timeListCommand, "List time entries sorted by start time (most recent first).", "  worklog time list\n  worklog time list -task <uuid>")
+			timeListFrom := timeListCommand.String("from", "", "Filter events starting on or after this date (YYYY-MM-DD)")
+			timeListTo := timeListCommand.String("to", "", "Filter events starting on or before this date (YYYY-MM-DD)")
+			timeListSearch := timeListCommand.String("search", "", "Filter by case-insensitive search in task name, description, or comment")
+			configureFlagSet(timeListCommand, "List time entries sorted by start time (most recent first).", "  worklog time list\n  worklog time list -task <uuid>\n  worklog time list -from 2023-08-01 -to 2023-08-15\n  worklog time list -search meeting")
 			if err := timeListCommand.Parse(timeArgs); err != nil {
 				return err
 			}
@@ -186,6 +193,23 @@ func run(args []string) error {
 			worklog, err := loadWorklog(*timeListFile)
 			if err != nil {
 				return err
+			}
+
+			var fromDay, toDay time.Time
+			if *timeListFrom != "" {
+				fromDay, err = parseDateFlag(*timeListFrom)
+				if err != nil {
+					return err
+				}
+			}
+			if *timeListTo != "" {
+				toDay, err = parseDateFlag(*timeListTo)
+				if err != nil {
+					return err
+				}
+			}
+			if !fromDay.IsZero() && !toDay.IsZero() && fromDay.After(toDay) {
+				return fmt.Errorf("from date must not be after to date")
 			}
 
 			events := worklog.GetEvents()
@@ -198,6 +222,41 @@ func run(args []string) error {
 				}
 				events = filtered
 			}
+
+			var filtered []*Event
+			for _, event := range events {
+				// Date range filter
+				if !event.dtstart.IsZero() {
+					eventDay := time.Date(event.dtstart.Year(), event.dtstart.Month(), event.dtstart.Day(), 0, 0, 0, 0, event.dtstart.Location())
+					if !fromDay.IsZero() && eventDay.Before(fromDay) {
+						continue
+					}
+					if !toDay.IsZero() && eventDay.After(toDay) {
+						continue
+					}
+				} else if !fromDay.IsZero() || !toDay.IsZero() {
+					continue
+				}
+
+				// Search filter
+				if *timeListSearch != "" {
+					match := false
+					if task := worklog.FindTaskByUUID(event.relatedTo); task != nil {
+						if matchesSearch(task.name, *timeListSearch) || matchesSearch(task.description, *timeListSearch) {
+							match = true
+						}
+					}
+					if !match && matchesSearch(event.comment, *timeListSearch) {
+						match = true
+					}
+					if !match {
+						continue
+					}
+				}
+
+				filtered = append(filtered, event)
+			}
+			events = filtered
 
 			sort.Slice(events, func(i, j int) bool {
 				return events[i].dtstart.After(events[j].dtstart)
@@ -453,7 +512,9 @@ func runTask(args []string) error {
 func runTaskList(args []string) error {
 	listCommand := flag.NewFlagSet("task list", flag.ContinueOnError)
 	listFile := listCommand.String("file", "", "Path to .ics file (overrides WORKLOG_FILE)")
-	configureFlagSet(listCommand, "List all tasks, showing the hierarchy, UUID, direct duration, and total duration.", "  worklog task list\n  worklog task list -file ~/tasks.ics")
+	listSearch := listCommand.String("search", "", "Filter tasks by case-insensitive search in name or description")
+	listParent := listCommand.String("parent", "", "Show only the specified task and its descendants")
+	configureFlagSet(listCommand, "List all tasks, showing the hierarchy, UUID, direct duration, and total duration.", "  worklog task list\n  worklog task list -file ~/tasks.ics\n  worklog task list -search planning\n  worklog task list -parent <uuid>")
 	if err := listCommand.Parse(args); err != nil {
 		return err
 	}
@@ -463,15 +524,53 @@ func runTaskList(args []string) error {
 		return err
 	}
 
+	tasks := worklog.tasks
+	if *listParent != "" {
+		parentTask := worklog.FindTaskByUUID(*listParent)
+		if parentTask == nil {
+			return fmt.Errorf("parent task with UUID '%s' not found", *listParent)
+		}
+		tasks = []*Task{parentTask}
+	}
+
 	direct, totals := worklog.ComputeTaskTotals()
-	nameWidth := maxTaskLineWidth(worklog.tasks, "")
+
+	if *listSearch != "" {
+		// Flat list of matching tasks
+		allTasks := flattenTasks(tasks)
+		var matching []*Task
+		for _, task := range allTasks {
+			if matchesSearch(task.name, *listSearch) || matchesSearch(task.description, *listSearch) {
+				matching = append(matching, task)
+			}
+		}
+		if len(matching) == 0 {
+			fmt.Println("No tasks match the search criteria.")
+			return nil
+		}
+		nameWidth := 4
+		for _, task := range matching {
+			if len(task.name) > nameWidth {
+				nameWidth = len(task.name)
+			}
+		}
+		fmt.Printf("%-*s %-*s %*s %*s\n", 36, "UUID", nameWidth, "Name", 10, "Duration", 10, "Total")
+		for _, task := range matching {
+			directDur := formatDuration(direct[task.uuid])
+			totalDur := formatDuration(totals[task.uuid])
+			fmt.Printf("%-*s %-*s %*s %*s\n", 36, task.uuid, nameWidth, task.name, 10, directDur, 10, totalDur)
+		}
+		return nil
+	}
+
+	nameWidth := maxTaskLineWidth(tasks, "")
 	if nameWidth < 4 {
 		nameWidth = 4
 	}
 	uuidWidth := 36
 	durWidth := 10
 	fmt.Printf("%-*s %-*s %*s %*s\n", uuidWidth, "UUID", nameWidth, "Name", durWidth, "Duration", durWidth, "Total")
-	printTasks(worklog.tasks, "", direct, totals, nameWidth)
+	printTasks(tasks, "", direct, totals, nameWidth)
 	return nil
 }
 
