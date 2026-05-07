@@ -81,7 +81,7 @@ func runJiraSync(args []string) error {
 	}
 	baseURL := cfg.Tempo.BaseURL
 	if baseURL == "" {
-		baseURL = "https://api.tempo.io/core/3"
+		baseURL = "https://api.tempo.io/4"
 	}
 
 	client := tempo.NewClient(baseURL, token, cfg.Tempo.AccountID)
@@ -150,7 +150,7 @@ func runJiraSync(args []string) error {
 
 	for _, e := range entries {
 		wl := tempo.Worklog{
-			IssueKey:         e.issueKey,
+			IssueId:          e.issueKey,
 			TimeSpentSeconds: e.duration,
 			StartDate:        e.start.Format("2006-01-02"),
 			StartTime:        e.start.Format("15:04:05"),

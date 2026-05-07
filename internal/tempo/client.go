@@ -17,7 +17,7 @@ type Client struct {
 
 func NewClient(baseURL, token, accountID string) *Client {
 	if baseURL == "" {
-		baseURL = "https://api.tempo.io/core/3"
+		baseURL = "https://api.tempo.io/4"
 	}
 	return &Client{
 		baseURL:   baseURL,
@@ -28,7 +28,7 @@ func NewClient(baseURL, token, accountID string) *Client {
 }
 
 type Worklog struct {
-	IssueKey         string
+	IssueId          string
 	TimeSpentSeconds int
 	StartDate        string
 	StartTime        string
@@ -38,7 +38,7 @@ type Worklog struct {
 func (c *Client) CreateWorklog(wl Worklog) error {
 	url := c.baseURL + "/worklogs"
 	payload := map[string]interface{}{
-		"issueKey":         wl.IssueKey,
+		"issueId":          wl.IssueId,
 		"timeSpentSeconds": wl.TimeSpentSeconds,
 		"startDate":        wl.StartDate,
 		"startTime":        wl.StartTime,

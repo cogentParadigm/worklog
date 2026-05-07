@@ -25,11 +25,14 @@ func TestCreateWorklogSuccess(t *testing.T) {
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			t.Fatalf("decode body: %v", err)
 		}
-		if body["issueKey"] != "PROJ-123" {
-			t.Errorf("issueKey: got %v, want PROJ-123", body["issueKey"])
+		if body["issueId"] != "PROJ-123" {
+			t.Errorf("issueId: got %v, want PROJ-123", body["issueId"])
 		}
 		if body["authorAccountId"] != "account-123" {
 			t.Errorf("authorAccountId: got %v, want account-123", body["authorAccountId"])
+		}
+		if body["startTime"] != "09:00:00" {
+			t.Errorf("startTime: got %v, want 09:00:00", body["startTime"])
 		}
 
 		w.WriteHeader(http.StatusOK)
@@ -39,7 +42,7 @@ func TestCreateWorklogSuccess(t *testing.T) {
 
 	client := NewClient(server.URL, "test-token", "account-123")
 	wl := Worklog{
-		IssueKey:         "PROJ-123",
+		IssueId:          "PROJ-123",
 		TimeSpentSeconds: 3600,
 		StartDate:        "2026-05-06",
 		StartTime:        "09:00:00",
@@ -58,7 +61,7 @@ func TestCreateWorklogError(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(server.URL, "bad-token", "account-123")
-	wl := Worklog{IssueKey: "PROJ-123", TimeSpentSeconds: 3600}
+	wl := Worklog{IssueId: "PROJ-123", TimeSpentSeconds: 3600}
 	err := client.CreateWorklog(wl)
 	if err == nil {
 		t.Fatal("expected error for 401 response")
@@ -72,7 +75,7 @@ func TestCreateWorklogError(t *testing.T) {
 func TestCreateWorklogNetworkError(t *testing.T) {
 	// Use an invalid URL to force a network error
 	client := NewClient("http://localhost:1", "token", "account")
-	wl := Worklog{IssueKey: "PROJ-123", TimeSpentSeconds: 3600}
+	wl := Worklog{IssueId: "PROJ-123", TimeSpentSeconds: 3600}
 	err := client.CreateWorklog(wl)
 	if err == nil {
 		t.Fatal("expected network error")
@@ -81,8 +84,8 @@ func TestCreateWorklogNetworkError(t *testing.T) {
 
 func TestNewClientDefaults(t *testing.T) {
 	client := NewClient("", "token", "account")
-	if client.baseURL != "https://api.tempo.io/core/3" {
-		t.Errorf("default base URL: got %q, want %q", client.baseURL, "https://api.tempo.io/core/3")
+	if client.baseURL != "https://api.tempo.io/4" {
+		t.Errorf("default base URL: got %q, want %q", client.baseURL, "https://api.tempo.io/4")
 	}
 }
 
@@ -107,7 +110,7 @@ func TestCreateWorklogPlainTextError(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(server.URL, "token", "account")
-	wl := Worklog{IssueKey: "PROJ-123", TimeSpentSeconds: 3600}
+	wl := Worklog{IssueId: "PROJ-123", TimeSpentSeconds: 3600}
 	err := client.CreateWorklog(wl)
 	if err == nil {
 		t.Fatal("expected error for 403 response")

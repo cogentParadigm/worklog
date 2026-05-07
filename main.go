@@ -1007,7 +1007,7 @@ func createSkeletonICS(path string) error {
 func runInit(args []string) error {
 	initCommand := flag.NewFlagSet("init", flag.ContinueOnError)
 	worklogFileFlag := initCommand.String("worklog-file", "", "Default worklog .ics file path")
-	tempoBaseURL := initCommand.String("tempo-base-url", "https://api.tempo.io/core/3", "Tempo Cloud base URL")
+	tempoBaseURL := initCommand.String("tempo-base-url", "https://api.tempo.io/4", "Tempo Cloud base URL")
 	tempoAccountID := initCommand.String("tempo-account-id", "", "Atlassian account ID")
 	tempoToken := initCommand.String("tempo-token", "", "Tempo API token")
 	skipTempo := initCommand.Bool("skip-tempo", false, "Skip Tempo configuration")

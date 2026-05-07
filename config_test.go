@@ -211,7 +211,7 @@ func TestSaveConfig(t *testing.T) {
 	cfg := &Config{
 		WorklogFile: "/tmp/tasks.ics",
 		Tempo: TempoConfig{
-			BaseURL:   "https://api.tempo.io/core/3",
+			BaseURL:   "https://api.tempo.io/4",
 			Token:     "secret",
 			AccountID: "abc-123",
 		},

@@ -67,7 +67,7 @@ Initializes the worklog configuration interactively or via flags. Detects existi
 
 **Flags:**
 - `--worklog-file` — Default worklog `.ics` file path (skips interactive prompts when provided).
-- `--tempo-base-url` — Tempo Cloud base URL (default: `https://api.tempo.io/core/3`).
+- `--tempo-base-url` — Tempo Cloud base URL (default: `https://api.tempo.io/4`).
 - `--tempo-account-id` — Atlassian account ID.
 - `--tempo-token` — Tempo API token.
 - `--skip-tempo` — Skip Tempo configuration.
@@ -300,7 +300,7 @@ worklog report timesheet -all -hide-empty
 
 ### `jira sync`
 
-Syncs time entries to Tempo Cloud (Jira). Entries are **merged by task and date** before sending: multiple small entries on the same day for the same task are summed into a single worklog with combined comments. By default, only unsynced entries are sent. Issue keys are auto-detected from task names (e.g., `PROJ-123`) or set explicitly via `-issue-key` on task create/update.
+Syncs time entries to Tempo Cloud (Jira). Entries are **merged by task and date** before sending: multiple small entries on the same day for the same task are summed into a single worklog with combined comments. By default, only unsynced entries are sent. Issue keys are auto-detected from task names (e.g., `PROJ-123`) or set explicitly via `-issue-key`.
 
 **Flags:**
 - `-file` — Path to the `.ics` file (overrides `WORKLOG_FILE`).
@@ -350,7 +350,7 @@ Use `worklog init` to create the initial config interactively, or `worklog confi
 worklog_file: ~/tasks.ics
 
 tempo:
-  base_url: https://api.tempo.io/core/3
+  base_url: https://api.tempo.io/4
   token: my-api-token
   account_id: your-atlassian-account-id
 ```
