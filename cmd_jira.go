@@ -141,6 +141,7 @@ func runJiraSync(args []string) error {
 	syncFormat := syncCommand.String("format", "list", "Preview format: list or timesheet")
 	syncHideEmpty := syncCommand.Bool("hide-empty", false, "Hide days with no time entries (timesheet format only)")
 	syncDecimal := syncCommand.Bool("decimal", false, "Display hours in decimal format (timesheet format only)")
+	syncRounding := syncCommand.String("rounding", "", "Rounding steps: floor/ceil/round:to[,...] (default from config, or round:1m)")
 	configureFlagSet(syncCommand, "Sync time entries to Tempo Cloud. Entries are merged by task and date before sending.", "  worklog jira sync --dry-run\n  worklog jira sync --task <uuid>\n  worklog jira sync --from 2026-05-01 --to 2026-05-07\n  worklog jira sync --dry-run --format timesheet --hide-empty")
 	if err := syncCommand.Parse(args); err != nil {
 		return err
@@ -196,7 +197,19 @@ func runJiraSync(args []string) error {
 		}
 	}
 
-	entries, err := buildSyncEntries(worklog, *syncTask, fromDay, toDay)
+	var roundingSteps []RoundingStep
+	if *syncRounding != "" {
+		roundingSteps, err = parseRoundingSteps(*syncRounding)
+		if err != nil {
+			return fmt.Errorf("--rounding: %w", err)
+		}
+	} else if len(cfg.Tempo.Rounding) > 0 {
+		roundingSteps = cfg.Tempo.Rounding
+	} else {
+		roundingSteps = []RoundingStep{{Step: "round", To: "1m"}}
+	}
+
+	entries, err := buildSyncEntries(worklog, *syncTask, fromDay, toDay, roundingSteps)
 	if err != nil {
 		return err
 	}
@@ -281,7 +294,7 @@ func runJiraSync(args []string) error {
 	return nil
 }
 
-func buildSyncEntries(worklog *Worklog, taskUUID string, fromDay, toDay time.Time) ([]syncEntry, error) {
+func buildSyncEntries(worklog *Worklog, taskUUID string, fromDay, toDay time.Time, roundingSteps []RoundingStep) ([]syncEntry, error) {
 	type groupKey struct {
 		taskUUID string
 		day      string
@@ -336,6 +349,15 @@ func buildSyncEntries(worklog *Worklog, taskUUID string, fromDay, toDay time.Tim
 
 	var entries []syncEntry
 	for _, g := range groups {
+		rounded, err := applyRounding(roundingSteps, g.duration)
+		if err != nil {
+			return nil, err
+		}
+		g.duration = rounded
+		if g.duration == 0 {
+			continue
+		}
+
 		// Check if any event in the group needs syncing
 		needsSync := false
 		for _, event := range g.events {
@@ -453,6 +475,32 @@ func buildTimesheetFromSyncEntries(entries []syncEntry, from, to time.Time) *Tim
 		rows:   rows,
 		totals: totals,
 	}
+}
+
+func applyRounding(steps []RoundingStep, seconds int) (int, error) {
+	d := seconds
+	for _, step := range steps {
+		toSec, err := parseDurationFlag(step.To)
+		if err != nil {
+			return 0, fmt.Errorf("rounding step %s %s: %w", step.Step, step.To, err)
+		}
+		if toSec <= 0 {
+			return 0, fmt.Errorf("rounding step %s %s: duration must be positive", step.Step, step.To)
+		}
+		switch step.Step {
+		case "floor":
+			d = (d / toSec) * toSec
+		case "ceil":
+			if d%toSec != 0 {
+				d = ((d / toSec) + 1) * toSec
+			}
+		case "round":
+			d = ((d + toSec/2) / toSec) * toSec
+		default:
+			return 0, fmt.Errorf("rounding step %s %s: unknown step %q", step.Step, step.To, step.Step)
+		}
+	}
+	return d, nil
 }
 
 func truncate(s string, maxLen int) string {

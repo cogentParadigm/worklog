@@ -71,6 +71,11 @@ tempo:
   base_url: https://custom.tempo.io
   token: my-secret-token
   account_id: abc-123
+  rounding:
+    - step: floor
+      to: 1m
+    - step: ceil
+      to: 5m
 jira:
   base_url: https://mycompany.atlassian.net
   username: user@example.com
@@ -100,6 +105,16 @@ jira:
 	}
 	if cfg.Tempo.AccountID != "abc-123" {
 		t.Errorf("account_id: got %q, want %q", cfg.Tempo.AccountID, "abc-123")
+	}
+	if len(cfg.Tempo.Rounding) != 2 {
+		t.Errorf("rounding: got %d steps, want 2", len(cfg.Tempo.Rounding))
+	} else {
+		if cfg.Tempo.Rounding[0].Step != "floor" || cfg.Tempo.Rounding[0].To != "1m" {
+			t.Errorf("rounding[0]: got %s:%s, want floor:1m", cfg.Tempo.Rounding[0].Step, cfg.Tempo.Rounding[0].To)
+		}
+		if cfg.Tempo.Rounding[1].Step != "ceil" || cfg.Tempo.Rounding[1].To != "5m" {
+			t.Errorf("rounding[1]: got %s:%s, want ceil:5m", cfg.Tempo.Rounding[1].Step, cfg.Tempo.Rounding[1].To)
+		}
 	}
 	if cfg.Jira.BaseURL != "https://mycompany.atlassian.net" {
 		t.Errorf("jira.base_url: got %q, want %q", cfg.Jira.BaseURL, "https://mycompany.atlassian.net")
@@ -352,10 +367,39 @@ func TestConfigGetSet(t *testing.T) {
 	if err := cfg.Set("unknown", "x"); err == nil {
 		t.Error("expected error for unknown key set")
 	}
+
+	// Rounding set/get
+	if err := cfg.Set("tempo.rounding", "floor:1m,ceil:5m"); err != nil {
+		t.Fatalf("Set tempo.rounding: %v", err)
+	}
+	val, err = cfg.Get("tempo.rounding")
+	if err != nil {
+		t.Fatalf("Get tempo.rounding: %v", err)
+	}
+	if val != "floor:1m,ceil:5m" {
+		t.Errorf("tempo.rounding: got %q, want %q", val, "floor:1m,ceil:5m")
+	}
+
+	// Empty rounding
+	if err := cfg.Set("tempo.rounding", ""); err != nil {
+		t.Fatalf("Set tempo.rounding empty: %v", err)
+	}
+	val, err = cfg.Get("tempo.rounding")
+	if err != nil {
+		t.Fatalf("Get tempo.rounding empty: %v", err)
+	}
+	if val != "" {
+		t.Errorf("tempo.rounding empty: got %q, want empty", val)
+	}
+
+	// Invalid rounding step
+	if err := cfg.Set("tempo.rounding", "invalid"); err == nil {
+		t.Error("expected error for invalid rounding step")
+	}
 }
 
 func TestIsValidConfigKey(t *testing.T) {
-	for _, key := range []string{"worklog_file", "tempo.base_url", "tempo.token", "tempo.account_id", "jira.base_url", "jira.username", "jira.token"} {
+	for _, key := range []string{"worklog_file", "tempo.base_url", "tempo.token", "tempo.account_id", "tempo.rounding", "jira.base_url", "jira.username", "jira.token"} {
 		if !isValidConfigKey(key) {
 			t.Errorf("expected %q to be valid", key)
 		}

@@ -180,7 +180,7 @@ func TestBuildSyncEntriesBasic(t *testing.T) {
 
 	wl := &Worklog{tasks: []*Task{task}, events: []*Event{event}}
 
-	entries, err := buildSyncEntries(wl, "", time.Time{}, time.Time{})
+	entries, err := buildSyncEntries(wl, "", time.Time{}, time.Time{}, nil)
 	if err != nil {
 		t.Fatalf("buildSyncEntries: %v", err)
 	}
@@ -217,7 +217,7 @@ func TestBuildSyncEntriesAggregatesSameTaskSameDay(t *testing.T) {
 
 	wl := &Worklog{tasks: []*Task{task}, events: []*Event{event1, event2, event3}}
 
-	entries, err := buildSyncEntries(wl, "", time.Time{}, time.Time{})
+	entries, err := buildSyncEntries(wl, "", time.Time{}, time.Time{}, nil)
 	if err != nil {
 		t.Fatalf("buildSyncEntries: %v", err)
 	}
@@ -267,7 +267,7 @@ func TestBuildSyncEntriesSeparateTasksSameDay(t *testing.T) {
 		events: []*Event{eventMatt, eventNathan1, eventNathan2, eventNathan3},
 	}
 
-	entries, err := buildSyncEntries(wl, "", time.Time{}, time.Time{})
+	entries, err := buildSyncEntries(wl, "", time.Time{}, time.Time{}, nil)
 	if err != nil {
 		t.Fatalf("buildSyncEntries: %v", err)
 	}
@@ -310,7 +310,7 @@ func TestBuildSyncEntriesNoComments(t *testing.T) {
 
 	wl := &Worklog{tasks: []*Task{task}, events: []*Event{event1, event2}}
 
-	entries, err := buildSyncEntries(wl, "", time.Time{}, time.Time{})
+	entries, err := buildSyncEntries(wl, "", time.Time{}, time.Time{}, nil)
 	if err != nil {
 		t.Fatalf("buildSyncEntries: %v", err)
 	}
@@ -337,7 +337,7 @@ func TestBuildSyncEntriesSkipsFullySyncedGroup(t *testing.T) {
 
 	wl := &Worklog{tasks: []*Task{task}, events: []*Event{event}}
 
-	entries, err := buildSyncEntries(wl, "", time.Time{}, time.Time{})
+	entries, err := buildSyncEntries(wl, "", time.Time{}, time.Time{}, nil)
 	if err != nil {
 		t.Fatalf("buildSyncEntries: %v", err)
 	}
@@ -364,7 +364,7 @@ func TestBuildSyncEntriesPartialSyncTriggersReSend(t *testing.T) {
 
 	wl := &Worklog{tasks: []*Task{task}, events: []*Event{event1, event2}}
 
-	entries, err := buildSyncEntries(wl, "", time.Time{}, time.Time{})
+	entries, err := buildSyncEntries(wl, "", time.Time{}, time.Time{}, nil)
 	if err != nil {
 		t.Fatalf("buildSyncEntries: %v", err)
 	}
@@ -392,7 +392,7 @@ func TestBuildSyncEntriesDateRange(t *testing.T) {
 
 	from := time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC)
 	to := time.Date(2026, 5, 5, 0, 0, 0, 0, time.UTC)
-	entries, err := buildSyncEntries(wl, "", from, to)
+	entries, err := buildSyncEntries(wl, "", from, to, nil)
 	if err != nil {
 		t.Fatalf("buildSyncEntries: %v", err)
 	}
@@ -402,7 +402,7 @@ func TestBuildSyncEntriesDateRange(t *testing.T) {
 
 	from = time.Date(2026, 5, 6, 0, 0, 0, 0, time.UTC)
 	to = time.Date(2026, 5, 6, 0, 0, 0, 0, time.UTC)
-	entries, err = buildSyncEntries(wl, "", from, to)
+	entries, err = buildSyncEntries(wl, "", from, to, nil)
 	if err != nil {
 		t.Fatalf("buildSyncEntries: %v", err)
 	}
@@ -428,7 +428,7 @@ func TestBuildSyncEntriesTaskFilter(t *testing.T) {
 
 	wl := &Worklog{tasks: []*Task{task1, task2}, events: []*Event{event1, event2}}
 
-	entries, err := buildSyncEntries(wl, "task-uuid-b", time.Time{}, time.Time{})
+	entries, err := buildSyncEntries(wl, "task-uuid-b", time.Time{}, time.Time{}, nil)
 	if err != nil {
 		t.Fatalf("buildSyncEntries: %v", err)
 	}
@@ -451,7 +451,7 @@ func TestBuildSyncEntriesNoIssueKey(t *testing.T) {
 
 	wl := &Worklog{tasks: []*Task{task}, events: []*Event{event}}
 
-	entries, err := buildSyncEntries(wl, "", time.Time{}, time.Time{})
+	entries, err := buildSyncEntries(wl, "", time.Time{}, time.Time{}, nil)
 	if err != nil {
 		t.Fatalf("buildSyncEntries: %v", err)
 	}
@@ -480,7 +480,7 @@ func TestBuildSyncEntriesReSyncAfterEdit(t *testing.T) {
 
 	wl := &Worklog{tasks: []*Task{task}, events: []*Event{event}}
 
-	entries, err := buildSyncEntries(wl, "", time.Time{}, time.Time{})
+	entries, err := buildSyncEntries(wl, "", time.Time{}, time.Time{}, nil)
 	if err != nil {
 		t.Fatalf("buildSyncEntries: %v", err)
 	}
@@ -508,7 +508,7 @@ func TestBuildSyncEntriesNoReSyncIfUnchanged(t *testing.T) {
 
 	wl := &Worklog{tasks: []*Task{task}, events: []*Event{event}}
 
-	entries, err := buildSyncEntries(wl, "", time.Time{}, time.Time{})
+	entries, err := buildSyncEntries(wl, "", time.Time{}, time.Time{}, nil)
 	if err != nil {
 		t.Fatalf("buildSyncEntries: %v", err)
 	}
@@ -634,5 +634,140 @@ func TestCollectAllTasks(t *testing.T) {
 		if task.name != want[i] {
 			t.Errorf("task %d: got %q, want %q", i, task.name, want[i])
 		}
+	}
+}
+
+func TestParseRoundingSteps(t *testing.T) {
+	tests := []struct {
+		input   string
+		want    []RoundingStep
+		wantErr bool
+	}{
+		{"", nil, false},
+		{"floor:1m", []RoundingStep{{Step: "floor", To: "1m"}}, false},
+		{"floor:1m,ceil:5m", []RoundingStep{{Step: "floor", To: "1m"}, {Step: "ceil", To: "5m"}}, false},
+		{"  floor : 1m , ceil : 5m  ", []RoundingStep{{Step: "floor", To: "1m"}, {Step: "ceil", To: "5m"}}, false},
+		{"round:30s", []RoundingStep{{Step: "round", To: "30s"}}, false},
+		{"invalid", nil, true},
+		{"foo:1m", nil, true},
+		{"floor:", nil, true},
+	}
+	for _, tt := range tests {
+		got, err := parseRoundingSteps(tt.input)
+		if tt.wantErr {
+			if err == nil {
+				t.Errorf("parseRoundingSteps(%q) expected error, got nil", tt.input)
+			}
+			continue
+		}
+		if err != nil {
+			t.Errorf("parseRoundingSteps(%q) unexpected error: %v", tt.input, err)
+			continue
+		}
+		if len(got) != len(tt.want) {
+			t.Errorf("parseRoundingSteps(%q) len=%d, want %d", tt.input, len(got), len(tt.want))
+			continue
+		}
+		for i := range got {
+			if got[i].Step != tt.want[i].Step || got[i].To != tt.want[i].To {
+				t.Errorf("parseRoundingSteps(%q)[%d] = {%s, %s}, want {%s, %s}", tt.input, i, got[i].Step, got[i].To, tt.want[i].Step, tt.want[i].To)
+			}
+		}
+	}
+}
+
+func TestApplyRounding(t *testing.T) {
+	tests := []struct {
+		name   string
+		steps  []RoundingStep
+		input  int
+		want   int
+		wantErr bool
+	}{
+		{"no rounding", nil, 359, 359, false},
+		{"floor 1m exact", []RoundingStep{{Step: "floor", To: "1m"}}, 300, 300, false},
+		{"floor 1m truncate", []RoundingStep{{Step: "floor", To: "1m"}}, 359, 300, false},
+		{"ceil 5m exact", []RoundingStep{{Step: "ceil", To: "5m"}}, 300, 300, false},
+		{"ceil 5m up", []RoundingStep{{Step: "ceil", To: "5m"}}, 301, 600, false},
+		{"round 1m down", []RoundingStep{{Step: "round", To: "1m"}}, 29, 0, false},
+		{"round 1m up", []RoundingStep{{Step: "round", To: "1m"}}, 31, 60, false},
+		{"round 1m exact", []RoundingStep{{Step: "round", To: "1m"}}, 30, 60, false},
+		{"floor 1m then ceil 5m - 5m59s", []RoundingStep{{Step: "floor", To: "1m"}, {Step: "ceil", To: "5m"}}, 359, 300, false},
+		{"floor 1m then ceil 5m - 6m1s", []RoundingStep{{Step: "floor", To: "1m"}, {Step: "ceil", To: "5m"}}, 361, 600, false},
+		{"floor 1m then ceil 5m - 10m exact", []RoundingStep{{Step: "floor", To: "1m"}, {Step: "ceil", To: "5m"}}, 600, 600, false},
+		{"floor 1m then ceil 5m - 11m", []RoundingStep{{Step: "floor", To: "1m"}, {Step: "ceil", To: "5m"}}, 660, 900, false},
+		{"invalid step", []RoundingStep{{Step: "invalid", To: "1m"}}, 100, 0, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := applyRounding(tt.steps, tt.input)
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+				return
+			}
+			if got != tt.want {
+				t.Errorf("applyRounding(%v, %d) = %d, want %d", tt.steps, tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestBuildSyncEntriesWithRounding(t *testing.T) {
+	task := NewTask("ABC-100")
+	task.uuid = "task-1"
+
+	// 5m 59s
+	event1 := NewEvent(task.uuid,
+		time.Date(2026, 5, 6, 9, 0, 0, 0, time.UTC),
+		time.Date(2026, 5, 6, 9, 5, 59, 0, time.UTC),
+		359, task.name, "")
+	// 6m 1s
+	event2 := NewEvent(task.uuid,
+		time.Date(2026, 5, 6, 10, 0, 0, 0, time.UTC),
+		time.Date(2026, 5, 6, 10, 6, 1, 0, time.UTC),
+		361, task.name, "")
+
+	wl := &Worklog{tasks: []*Task{task}, events: []*Event{event1, event2}}
+
+	steps := []RoundingStep{{Step: "floor", To: "1m"}, {Step: "ceil", To: "5m"}}
+	entries, err := buildSyncEntries(wl, "", time.Time{}, time.Time{}, steps)
+	if err != nil {
+		t.Fatalf("buildSyncEntries: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(entries))
+	}
+	// 359 -> floor to 300 -> ceil to 300 = 5m
+	// 361 -> floor to 360 -> ceil to 600 = 10m
+	// total = 900s = 15m
+	if entries[0].duration != 900 {
+		t.Errorf("duration: got %d, want 900", entries[0].duration)
+	}
+}
+
+func TestBuildSyncEntriesRoundingToZero(t *testing.T) {
+	task := NewTask("ABC-100")
+	task.uuid = "task-1"
+
+	event := NewEvent(task.uuid,
+		time.Date(2026, 5, 6, 9, 0, 0, 0, time.UTC),
+		time.Date(2026, 5, 6, 9, 0, 29, 0, time.UTC),
+		29, task.name, "")
+
+	wl := &Worklog{tasks: []*Task{task}, events: []*Event{event}}
+
+	steps := []RoundingStep{{Step: "floor", To: "1m"}}
+	entries, err := buildSyncEntries(wl, "", time.Time{}, time.Time{}, steps)
+	if err != nil {
+		t.Fatalf("buildSyncEntries: %v", err)
+	}
+	if len(entries) != 0 {
+		t.Errorf("expected 0 entries after rounding to zero, got %d", len(entries))
 	}
 }

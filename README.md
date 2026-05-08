@@ -70,6 +70,7 @@ Initializes the worklog configuration interactively or via flags. Detects existi
 - `--tempo-base-url` — Tempo Cloud base URL (default: `https://api.tempo.io/4`).
 - `--tempo-account-id` — Atlassian account ID.
 - `--tempo-token` — Tempo API token.
+- `--tempo-rounding` — Rounding steps for sync (e.g. `floor:1m,ceil:5m`).
 - `--jira-base-url` — Jira base URL.
 - `--jira-username` — Jira username.
 - `--jira-token` — Jira API token.
@@ -339,6 +340,7 @@ Issue keys are auto-detected from task names (e.g., `PROJ-123`) or set explicitl
 - `-format` — Preview format: `list` (default) or `timesheet`.
 - `-hide-empty` — Hide days with no time entries (`timesheet` format only).
 - `-decimal` — Display hours in decimal format (`timesheet` format only).
+- `-rounding` — Rounding steps: `floor/ceil/round:to[,...]` (overrides config; default is `round:1m`).
 
 **Examples:**
 ```bash
@@ -359,6 +361,9 @@ worklog jira sync --dry-run --format timesheet
 
 # Preview in timesheet format, hiding empty days and showing decimal hours
 worklog jira sync --dry-run --format timesheet --hide-empty --decimal
+
+# Sync with custom rounding (floor to minutes, then ceil to 5 minutes)
+worklog jira sync --rounding "floor:1m,ceil:5m"
 ```
 
 ## Configuration
@@ -379,6 +384,11 @@ tempo:
   base_url: https://api.tempo.io/4
   token: my-api-token
   account_id: your-atlassian-account-id
+  rounding:
+    - step: floor
+      to: 1m
+    - step: ceil
+      to: 5m
 
 jira:
   base_url: https://mycompany.atlassian.net
@@ -395,6 +405,8 @@ jira:
 ```
 
 Jira authentication uses Basic auth with `base64(username:token)`. Set `jira.username` to your Atlassian account email and `jira.token` to your Jira API token.
+
+**Time rounding:** By default, durations sent to Tempo are rounded to the nearest minute (`round:1m`). You can customize this in `config.yaml` under `tempo.rounding` as a sequence of `floor`, `ceil`, or `round` steps, each with a duration like `1m`, `5m`, or `30s`. Rounding is applied after events are merged by task and date. Set `-rounding ""` on the command line or an empty array in config to disable rounding entirely.
 
 ## File I/O
 

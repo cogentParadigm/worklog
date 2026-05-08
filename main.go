@@ -1010,6 +1010,7 @@ func runInit(args []string) error {
 	tempoBaseURL := initCommand.String("tempo-base-url", "https://api.tempo.io/4", "Tempo Cloud base URL")
 	tempoAccountID := initCommand.String("tempo-account-id", "", "Atlassian account ID")
 	tempoToken := initCommand.String("tempo-token", "", "Tempo API token")
+	tempoRounding := initCommand.String("tempo-rounding", "", "Tempo rounding steps (e.g. floor:1m,ceil:5m)")
 	jiraBaseURL := initCommand.String("jira-base-url", "", "Jira base URL")
 	jiraUsername := initCommand.String("jira-username", "", "Jira username")
 	jiraToken := initCommand.String("jira-token", "", "Jira API token")
@@ -1036,6 +1037,13 @@ func runInit(args []string) error {
 			cfg.Tempo.BaseURL = *tempoBaseURL
 			cfg.Tempo.AccountID = *tempoAccountID
 			cfg.Tempo.Token = *tempoToken
+			if *tempoRounding != "" {
+				steps, err := parseRoundingSteps(*tempoRounding)
+				if err != nil {
+					return fmt.Errorf("--tempo-rounding: %w", err)
+				}
+				cfg.Tempo.Rounding = steps
+			}
 		}
 		if !*skipJira {
 			cfg.Jira.BaseURL = *jiraBaseURL

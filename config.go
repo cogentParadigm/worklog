@@ -17,10 +17,16 @@ type Config struct {
 	Jira        JiraConfig  `yaml:"jira"`
 }
 
+type RoundingStep struct {
+	Step string `yaml:"step"`
+	To   string `yaml:"to"`
+}
+
 type TempoConfig struct {
-	BaseURL   string `yaml:"base_url"`
-	Token     string `yaml:"token"`
-	AccountID string `yaml:"account_id"`
+	BaseURL   string         `yaml:"base_url"`
+	Token     string         `yaml:"token"`
+	AccountID string         `yaml:"account_id"`
+	Rounding  []RoundingStep `yaml:"rounding,omitempty"`
 }
 
 type JiraConfig struct {
@@ -121,6 +127,8 @@ func (cfg *Config) Get(key string) (string, error) {
 			return "", nil
 		}
 		return "<hidden>", nil
+	case "tempo.rounding":
+		return roundingStepsString(cfg.Tempo.Rounding), nil
 	default:
 		return "", fmt.Errorf("unknown config key: %s", key)
 	}
@@ -136,6 +144,8 @@ func (cfg *Config) GetUnmasked(key string) (string, error) {
 		return cfg.Tempo.Token, nil
 	case "tempo.account_id":
 		return cfg.Tempo.AccountID, nil
+	case "tempo.rounding":
+		return roundingStepsString(cfg.Tempo.Rounding), nil
 	case "jira.base_url":
 		return cfg.Jira.BaseURL, nil
 	case "jira.username":
@@ -157,6 +167,12 @@ func (cfg *Config) Set(key, value string) error {
 		cfg.Tempo.Token = value
 	case "tempo.account_id":
 		cfg.Tempo.AccountID = value
+	case "tempo.rounding":
+		steps, err := parseRoundingSteps(value)
+		if err != nil {
+			return err
+		}
+		cfg.Tempo.Rounding = steps
 	case "jira.base_url":
 		cfg.Jira.BaseURL = value
 	case "jira.username":
@@ -171,7 +187,7 @@ func (cfg *Config) Set(key, value string) error {
 
 func isValidConfigKey(key string) bool {
 	switch key {
-	case "worklog_file", "tempo.base_url", "tempo.token", "tempo.account_id",
+	case "worklog_file", "tempo.base_url", "tempo.token", "tempo.account_id", "tempo.rounding",
 		"jira.base_url", "jira.username", "jira.token":
 		return true
 	default:
@@ -197,4 +213,45 @@ func resolvePassSecret(key string) (string, error) {
 		return "", fmt.Errorf("pass %s: %w", key, err)
 	}
 	return strings.TrimSpace(string(out)), nil
+}
+
+func parseRoundingSteps(s string) ([]RoundingStep, error) {
+	if s == "" {
+		return nil, nil
+	}
+	var steps []RoundingStep
+	for _, part := range strings.Split(s, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		colonIdx := strings.Index(part, ":")
+		if colonIdx < 0 {
+			return nil, fmt.Errorf("invalid rounding step %q: expected format step:to (e.g. floor:1m)", part)
+		}
+		step := strings.ToLower(strings.TrimSpace(part[:colonIdx]))
+		to := strings.TrimSpace(part[colonIdx+1:])
+		if to == "" {
+			return nil, fmt.Errorf("invalid rounding step %q: missing duration", part)
+		}
+		if step != "floor" && step != "ceil" && step != "round" {
+			return nil, fmt.Errorf("invalid rounding step %q: step must be floor, ceil, or round", part)
+		}
+		if _, err := parseDurationFlag(to); err != nil {
+			return nil, fmt.Errorf("invalid rounding step %q: %w", part, err)
+		}
+		steps = append(steps, RoundingStep{Step: step, To: to})
+	}
+	return steps, nil
+}
+
+func roundingStepsString(steps []RoundingStep) string {
+	if len(steps) == 0 {
+		return ""
+	}
+	var parts []string
+	for _, s := range steps {
+		parts = append(parts, fmt.Sprintf("%s:%s", s.Step, s.To))
+	}
+	return strings.Join(parts, ",")
 }
