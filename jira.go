@@ -2,7 +2,6 @@ package main
 
 import (
 	"regexp"
-	"strings"
 	"time"
 
 	ics "github.com/arran4/golang-ical"
@@ -90,36 +89,43 @@ func (event *Event) LastModified() time.Time {
 
 func (task *Task) TempoAttributes() map[string]string {
 	attrs := make(map[string]string)
-	prefix := "X-WORKLOG-TEMPO-ATTR-"
 	for _, prop := range task.properties {
-		if strings.HasPrefix(prop.IANAToken, prefix) && prop.Value != "" {
-			key := strings.TrimPrefix(prop.IANAToken, prefix)
-			attrs[key] = prop.Value
+		if prop.IANAToken == "X-WORKLOG-TEMPO-ATTR" && prop.Value != "" {
+			if keys, ok := prop.ICalParameters["KEY"]; ok && len(keys) > 0 {
+				attrs[keys[0]] = prop.Value
+			}
 		}
 	}
 	return attrs
 }
 
 func (task *Task) SetTempoAttribute(key, value string) {
-	token := "X-WORKLOG-TEMPO-ATTR-" + key
 	for i, prop := range task.properties {
-		if prop.IANAToken == token {
-			task.properties[i].Value = value
-			return
+		if prop.IANAToken == "X-WORKLOG-TEMPO-ATTR" {
+			if keys, ok := prop.ICalParameters["KEY"]; ok && len(keys) > 0 && keys[0] == key {
+				task.properties[i].Value = value
+				return
+			}
 		}
 	}
 	task.properties = append(task.properties, ics.IANAProperty{
-		BaseProperty: ics.BaseProperty{IANAToken: token, Value: value},
+		BaseProperty: ics.BaseProperty{
+			IANAToken:      "X-WORKLOG-TEMPO-ATTR",
+			ICalParameters: map[string][]string{"KEY": {key}},
+			Value:          value,
+		},
 	})
 }
 
 func (task *Task) ClearTempoAttribute(key string) {
-	token := "X-WORKLOG-TEMPO-ATTR-" + key
 	var newProps []ics.IANAProperty
 	for _, prop := range task.properties {
-		if prop.IANAToken != token {
-			newProps = append(newProps, prop)
+		if prop.IANAToken == "X-WORKLOG-TEMPO-ATTR" {
+			if keys, ok := prop.ICalParameters["KEY"]; ok && len(keys) > 0 && keys[0] == key {
+				continue
+			}
 		}
+		newProps = append(newProps, prop)
 	}
 	task.properties = newProps
 }

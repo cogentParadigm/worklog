@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -172,8 +173,8 @@ func TestEventLastModified(t *testing.T) {
 func TestTaskTempoAttributes(t *testing.T) {
 	task := &Task{
 		properties: []ics.IANAProperty{
-			{BaseProperty: ics.BaseProperty{IANAToken: "X-WORKLOG-TEMPO-ATTR-_WorkType_", Value: "Development"}},
-			{BaseProperty: ics.BaseProperty{IANAToken: "X-WORKLOG-TEMPO-ATTR-_Billable_", Value: "Yes"}},
+			{BaseProperty: ics.BaseProperty{IANAToken: "X-WORKLOG-TEMPO-ATTR", ICalParameters: map[string][]string{"KEY": {"_WorkType_"}}, Value: "Development"}},
+			{BaseProperty: ics.BaseProperty{IANAToken: "X-WORKLOG-TEMPO-ATTR", ICalParameters: map[string][]string{"KEY": {"_Billable_"}}, Value: "Yes"}},
 			{BaseProperty: ics.BaseProperty{IANAToken: "X-OTHER", Value: "ignore"}},
 		},
 	}
@@ -201,7 +202,7 @@ func TestTaskSetTempoAttribute(t *testing.T) {
 func TestTaskSetTempoAttributeUpdatesExisting(t *testing.T) {
 	task := &Task{
 		properties: []ics.IANAProperty{
-			{BaseProperty: ics.BaseProperty{IANAToken: "X-WORKLOG-TEMPO-ATTR-_WorkType_", Value: "Review"}},
+			{BaseProperty: ics.BaseProperty{IANAToken: "X-WORKLOG-TEMPO-ATTR", ICalParameters: map[string][]string{"KEY": {"_WorkType_"}}, Value: "Review"}},
 		},
 	}
 	task.SetTempoAttribute("_WorkType_", "Development")
@@ -216,14 +217,47 @@ func TestTaskSetTempoAttributeUpdatesExisting(t *testing.T) {
 func TestTaskClearTempoAttribute(t *testing.T) {
 	task := &Task{
 		properties: []ics.IANAProperty{
-			{BaseProperty: ics.BaseProperty{IANAToken: "X-WORKLOG-TEMPO-ATTR-_WorkType_", Value: "Development"}},
-			{BaseProperty: ics.BaseProperty{IANAToken: "X-WORKLOG-TEMPO-ATTR-_Billable_", Value: "Yes"}},
+			{BaseProperty: ics.BaseProperty{IANAToken: "X-WORKLOG-TEMPO-ATTR", ICalParameters: map[string][]string{"KEY": {"_WorkType_"}}, Value: "Development"}},
+			{BaseProperty: ics.BaseProperty{IANAToken: "X-WORKLOG-TEMPO-ATTR", ICalParameters: map[string][]string{"KEY": {"_Billable_"}}, Value: "Yes"}},
 		},
 	}
 	task.ClearTempoAttribute("_WorkType_")
 	attrs := task.TempoAttributes()
 	if _, ok := attrs["_WorkType_"]; ok {
 		t.Error("expected _WorkType_ to be cleared")
+	}
+	if attrs["_Billable_"] != "Yes" {
+		t.Errorf("_Billable_: got %q, want Yes", attrs["_Billable_"])
+	}
+}
+
+func TestTaskTempoAttributesRoundTrip(t *testing.T) {
+	task := NewTask("Review code")
+	task.SetTempoAttribute("_WorkType_", "Development")
+	task.SetTempoAttribute("_Billable_", "Yes")
+
+	todo := makeTodoForTask(task)
+	cal := ics.NewCalendar()
+	cal.Components = append(cal.Components, &todo)
+
+	serialized := cal.Serialize()
+	parsed, err := ics.ParseCalendar(strings.NewReader(serialized))
+	if err != nil {
+		t.Fatalf("parse serialized calendar: %v", err)
+	}
+
+	todos := getTodos(parsed)
+	if len(todos) != 1 {
+		t.Fatalf("expected 1 todo, got %d", len(todos))
+	}
+
+	roundTrip, _ := makeTaskForTodo(todos[0])
+	attrs := roundTrip.TempoAttributes()
+	if len(attrs) != 2 {
+		t.Fatalf("expected 2 attributes, got %d", len(attrs))
+	}
+	if attrs["_WorkType_"] != "Development" {
+		t.Errorf("_WorkType_: got %q, want Development", attrs["_WorkType_"])
 	}
 	if attrs["_Billable_"] != "Yes" {
 		t.Errorf("_Billable_: got %q, want Yes", attrs["_Billable_"])

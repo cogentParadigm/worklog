@@ -711,7 +711,7 @@ func runTaskUpdate(args []string) error {
 			// Clear all tempo attributes
 			var newProps []ics.IANAProperty
 			for _, prop := range task.properties {
-				if !strings.HasPrefix(prop.IANAToken, "X-WORKLOG-TEMPO-ATTR-") {
+				if prop.IANAToken != "X-WORKLOG-TEMPO-ATTR" {
 					newProps = append(newProps, prop)
 				}
 			}
