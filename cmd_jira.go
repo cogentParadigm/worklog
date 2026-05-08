@@ -25,7 +25,8 @@ func printJiraUsage() {
 	fmt.Println("Usage: worklog jira <subcommand> [<args>]")
 	fmt.Println("")
 	fmt.Println("Available jira subcommands:")
-	fmt.Println("  sync    Sync time entries to Tempo")
+	fmt.Println("  resolve    Resolve Jira issue keys to numeric IDs")
+	fmt.Println("  sync       Sync time entries to Tempo")
 }
 
 func runJira(args []string) error {
@@ -39,11 +40,90 @@ func runJira(args []string) error {
 	}
 
 	switch args[0] {
+	case "resolve":
+		return runJiraResolve(args[1:])
 	case "sync":
 		return runJiraSync(args[1:])
 	default:
 		return fmt.Errorf("unknown jira subcommand '%s'", args[0])
 	}
+}
+
+func collectAllTasks(tasks []*Task) []*Task {
+	var result []*Task
+	for _, task := range tasks {
+		result = append(result, task)
+		result = append(result, collectAllTasks(task.children)...)
+	}
+	return result
+}
+
+func runJiraResolve(args []string) error {
+	resolveCommand := flag.NewFlagSet("jira resolve", flag.ContinueOnError)
+	resolveFile := resolveCommand.String("file", "", "Path to .ics file (overrides WORKLOG_FILE)")
+	resolveOutput := resolveCommand.String("output", "", "Output path for the updated .ics file (defaults to input file)")
+	resolveTask := resolveCommand.String("task", "", "UUID of a specific task to resolve (optional)")
+	configureFlagSet(resolveCommand, "Resolve Jira issue keys to numeric IDs and cache them on tasks.", "  worklog jira resolve\n  worklog jira resolve --task <uuid>")
+	if err := resolveCommand.Parse(args); err != nil {
+		return err
+	}
+
+	worklog, err := loadWorklog(*resolveFile)
+	if err != nil {
+		return err
+	}
+
+	cfg, err := LoadConfig()
+	if err != nil {
+		return fmt.Errorf("load config: %w", err)
+	}
+
+	jiraToken, err := cfg.ResolveJiraToken()
+	if err != nil {
+		return fmt.Errorf("jira configuration: %w", err)
+	}
+	if cfg.Jira.BaseURL == "" {
+		return fmt.Errorf("jira.base_url not configured")
+	}
+	jiraClient := jira.NewClient(cfg.Jira.BaseURL, jiraToken)
+
+	var tasks []*Task
+	if *resolveTask != "" {
+		task := worklog.FindTaskByUUID(*resolveTask)
+		if task == nil {
+			return fmt.Errorf("task with UUID '%s' not found", *resolveTask)
+		}
+		tasks = []*Task{task}
+	} else {
+		tasks = collectAllTasks(worklog.tasks)
+	}
+
+	resolved := 0
+	skipped := 0
+
+	for _, task := range tasks {
+		issueKey := task.IssueKey()
+		if issueKey == "" {
+			continue
+		}
+		if task.IssueID() != "" {
+			skipped++
+			continue
+		}
+		id, err := jiraClient.GetIssueID(issueKey)
+		if err != nil {
+			return fmt.Errorf("resolve issue key %s for task '%s': %w", issueKey, task.name, err)
+		}
+		task.SetIssueID(id)
+		resolved++
+	}
+
+	if err := worklog.Save(*resolveOutput); err != nil {
+		return fmt.Errorf("save worklog: %w", err)
+	}
+
+	fmt.Printf("Resolved %d issue key(s), skipped %d already cached.\n", resolved, skipped)
+	return nil
 }
 
 func runJiraSync(args []string) error {
