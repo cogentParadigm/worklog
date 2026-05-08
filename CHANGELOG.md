@@ -1,3 +1,10 @@
+# [0.18.0](https://github.com/cogentParadigm/worklog/compare/v0.17.0...v0.18.0) (2026-05-08)
+
+
+### Features
+
+* add tempo work attributes support ([236f097](https://github.com/cogentParadigm/worklog/commit/236f0971e833491c2fb17952a256b687cdc51c6a))
+
 # [0.17.0](https://github.com/cogentParadigm/worklog/compare/v0.16.0...v0.17.0) (2026-05-08)
 
 
