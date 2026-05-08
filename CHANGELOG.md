@@ -1,3 +1,18 @@
+# [0.17.0](https://github.com/cogentParadigm/worklog/compare/v0.16.0...v0.17.0) (2026-05-08)
+
+
+### Bug Fixes
+
+* **jira:** require separate username and always use Basic auth ([f04c91b](https://github.com/cogentParadigm/worklog/commit/f04c91bee6f06012712ec2e4063d1698ae6e3386))
+
+
+### Features
+
+* add configurable rounding for jira sync ([22e8009](https://github.com/cogentParadigm/worklog/commit/22e800906eaa510835452906d6eb9e576fd78f48))
+* add jira resolve subcommand ([06fdb2b](https://github.com/cogentParadigm/worklog/commit/06fdb2b53f86f5dbdc3f262125222f89fdf1c11f))
+* **jira:** fetch and echo remaining estimates in tempo sync ([9db4f97](https://github.com/cogentParadigm/worklog/commit/9db4f9750e056676e1d7049752421565c302d5e7))
+* resolve jira issue keys to numeric ids before sending to tempo ([3b73954](https://github.com/cogentParadigm/worklog/commit/3b73954c7d9f1bc4b8b718597cc1483785c7033c))
+
 # [0.16.0](https://github.com/cogentParadigm/worklog/compare/v0.15.0...v0.16.0) (2026-05-07)
 
 
