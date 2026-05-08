@@ -1,3 +1,10 @@
+# [0.20.0](https://github.com/cogentParadigm/worklog/compare/v0.19.0...v0.20.0) (2026-05-08)
+
+
+### Features
+
+* add short unique UUID prefix resolution and display ([8b4baec](https://github.com/cogentParadigm/worklog/commit/8b4baec17ed9d578929ca6023ec852ff2bb3a68c))
+
 # [0.19.0](https://github.com/cogentParadigm/worklog/compare/v0.18.1...v0.19.0) (2026-05-08)
 
 
