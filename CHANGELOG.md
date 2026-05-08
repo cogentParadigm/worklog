@@ -1,3 +1,10 @@
+## [0.18.1](https://github.com/cogentParadigm/worklog/compare/v0.18.0...v0.18.1) (2026-05-08)
+
+
+### Bug Fixes
+
+* use KEY parameter for tempo attributes instead of dynamic property names ([35f0bf1](https://github.com/cogentParadigm/worklog/commit/35f0bf1a7d68b7c614492ce1ba26d1d8e4a81ba8))
+
 # [0.18.0](https://github.com/cogentParadigm/worklog/compare/v0.17.0...v0.18.0) (2026-05-08)
 
 
