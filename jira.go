@@ -2,6 +2,7 @@ package main
 
 import (
 	"regexp"
+	"strings"
 	"time"
 
 	ics "github.com/arran4/golang-ical"
@@ -85,4 +86,40 @@ func (event *Event) LastModified() time.Time {
 		}
 	}
 	return time.Time{}
+}
+
+func (task *Task) TempoAttributes() map[string]string {
+	attrs := make(map[string]string)
+	prefix := "X-WORKLOG-TEMPO-ATTR-"
+	for _, prop := range task.properties {
+		if strings.HasPrefix(prop.IANAToken, prefix) && prop.Value != "" {
+			key := strings.TrimPrefix(prop.IANAToken, prefix)
+			attrs[key] = prop.Value
+		}
+	}
+	return attrs
+}
+
+func (task *Task) SetTempoAttribute(key, value string) {
+	token := "X-WORKLOG-TEMPO-ATTR-" + key
+	for i, prop := range task.properties {
+		if prop.IANAToken == token {
+			task.properties[i].Value = value
+			return
+		}
+	}
+	task.properties = append(task.properties, ics.IANAProperty{
+		BaseProperty: ics.BaseProperty{IANAToken: token, Value: value},
+	})
+}
+
+func (task *Task) ClearTempoAttribute(key string) {
+	token := "X-WORKLOG-TEMPO-ATTR-" + key
+	var newProps []ics.IANAProperty
+	for _, prop := range task.properties {
+		if prop.IANAToken != token {
+			newProps = append(newProps, prop)
+		}
+	}
+	task.properties = newProps
 }

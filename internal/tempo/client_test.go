@@ -172,3 +172,139 @@ func TestCreateWorklogWithoutRemainingEstimate(t *testing.T) {
 		t.Fatalf("CreateWorklog: %v", err)
 	}
 }
+
+func TestCreateWorklogWithAttributes(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]interface{}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode body: %v", err)
+		}
+		attrs, ok := body["attributes"].([]interface{})
+		if !ok {
+			t.Fatalf("expected attributes array, got %T", body["attributes"])
+		}
+		if len(attrs) != 2 {
+			t.Fatalf("expected 2 attributes, got %d", len(attrs))
+		}
+		keys := make(map[string]string)
+		for _, a := range attrs {
+			m := a.(map[string]interface{})
+			keys[m["key"].(string)] = m["value"].(string)
+		}
+		if keys["_WorkType_"] != "Development" {
+			t.Errorf("_WorkType_: got %q, want Development", keys["_WorkType_"])
+		}
+		if keys["_Billable_"] != "Yes" {
+			t.Errorf("_Billable_: got %q, want Yes", keys["_Billable_"])
+		}
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]interface{}{"id": 42})
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "token", "account")
+	wl := Worklog{
+		IssueId:          "PROJ-123",
+		TimeSpentSeconds: 3600,
+		StartDate:        "2026-05-06",
+		StartTime:        "09:00:00",
+		Description:      "Test worklog",
+		Attributes:       map[string]string{"_WorkType_": "Development", "_Billable_": "Yes"},
+	}
+	if err := client.CreateWorklog(wl); err != nil {
+		t.Fatalf("CreateWorklog: %v", err)
+	}
+}
+
+func TestCreateWorklogNoAttributesWhenEmpty(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]interface{}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode body: %v", err)
+		}
+		if _, ok := body["attributes"]; ok {
+			t.Errorf("attributes should not be present when empty")
+		}
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]interface{}{"id": 42})
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "token", "account")
+	wl := Worklog{
+		IssueId:          "PROJ-123",
+		TimeSpentSeconds: 3600,
+		StartDate:        "2026-05-06",
+		StartTime:        "09:00:00",
+		Description:      "Test worklog",
+		Attributes:       map[string]string{},
+	}
+	if err := client.CreateWorklog(wl); err != nil {
+		t.Fatalf("CreateWorklog: %v", err)
+	}
+}
+
+func TestGetWorkAttributes(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" {
+			t.Errorf("expected GET, got %s", r.Method)
+		}
+		if r.URL.Path != "/work-attributes" {
+			t.Errorf("expected path /work-attributes, got %s", r.URL.Path)
+		}
+		resp := map[string]interface{}{
+			"results": []map[string]interface{}{
+				{
+					"key":      "_WorkType_",
+					"name":     "Work Type",
+					"type":     "STATIC_LIST",
+					"required": true,
+					"values":   []string{"Development", "CodeReview", "Testing"},
+					"names": map[string]string{
+						"Development": "Development",
+						"CodeReview":  "Code Review",
+						"Testing":     "Testing",
+					},
+				},
+			},
+		}
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "token", "account")
+	attrs, err := client.GetWorkAttributes()
+	if err != nil {
+		t.Fatalf("GetWorkAttributes: %v", err)
+	}
+	if len(attrs) != 1 {
+		t.Fatalf("expected 1 attribute, got %d", len(attrs))
+	}
+	if attrs[0].Key != "_WorkType_" {
+		t.Errorf("key: got %q, want _WorkType_", attrs[0].Key)
+	}
+	if !attrs[0].Required {
+		t.Error("expected required=true")
+	}
+	if len(attrs[0].Values) != 3 {
+		t.Errorf("expected 3 values, got %d", len(attrs[0].Values))
+	}
+	if attrs[0].Names["CodeReview"] != "Code Review" {
+		t.Errorf("names['CodeReview']: got %q, want 'Code Review'", attrs[0].Names["CodeReview"])
+	}
+}
+
+func TestGetWorkAttributesError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		json.NewEncoder(w).Encode(map[string]interface{}{"error": "bad token"})
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "token", "account")
+	_, err := client.GetWorkAttributes()
+	if err == nil {
+		t.Fatal("expected error for 401 response")
+	}
+}

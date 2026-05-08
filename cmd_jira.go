@@ -25,8 +25,9 @@ func printJiraUsage() {
 	fmt.Println("Usage: worklog jira <subcommand> [<args>]")
 	fmt.Println("")
 	fmt.Println("Available jira subcommands:")
-	fmt.Println("  resolve    Resolve Jira issue keys to numeric IDs")
-	fmt.Println("  sync       Sync time entries to Tempo")
+	fmt.Println("  resolve     Resolve Jira issue keys to numeric IDs")
+	fmt.Println("  sync        Sync time entries to Tempo")
+	fmt.Println("  attributes  List available Tempo work attributes")
 }
 
 func runJira(args []string) error {
@@ -44,6 +45,8 @@ func runJira(args []string) error {
 		return runJiraResolve(args[1:])
 	case "sync":
 		return runJiraSync(args[1:])
+	case "attributes":
+		return runJiraAttributes(args[1:])
 	default:
 		return fmt.Errorf("unknown jira subcommand '%s'", args[0])
 	}
@@ -287,12 +290,20 @@ func runJiraSync(args []string) error {
 			e.task.SetIssueID(id)
 			issueID = id
 		}
+		attrs := make(map[string]string)
+		for k, v := range cfg.Tempo.Attributes {
+			attrs[k] = v
+		}
+		for k, v := range e.task.TempoAttributes() {
+			attrs[k] = v
+		}
 		wl := tempo.Worklog{
 			IssueId:          issueID,
 			TimeSpentSeconds: e.duration,
 			StartDate:        e.start.Format("2006-01-02"),
 			StartTime:        e.start.Format("15:04:05"),
 			Description:      e.comment,
+			Attributes:       attrs,
 		}
 		if est, ok := remainingEstimates[e.issueKey]; ok {
 			wl.RemainingEstimateSeconds = &est
@@ -311,6 +322,62 @@ func runJiraSync(args []string) error {
 	}
 
 	fmt.Printf("Successfully synced %d worklog(s).\n", len(entries))
+	return nil
+}
+
+func runJiraAttributes(args []string) error {
+	attrCommand := flag.NewFlagSet("jira attributes", flag.ContinueOnError)
+	configureFlagSet(attrCommand, "List available Tempo work attributes.", "  worklog jira attributes")
+	if err := attrCommand.Parse(args); err != nil {
+		return err
+	}
+
+	cfg, err := LoadConfig()
+	if err != nil {
+		return fmt.Errorf("load config: %w", err)
+	}
+
+	token, err := cfg.ResolveTempoToken()
+	if err != nil {
+		return fmt.Errorf("tempo configuration: %w", err)
+	}
+	baseURL := cfg.Tempo.BaseURL
+	if baseURL == "" {
+		baseURL = "https://api.tempo.io/4"
+	}
+
+	client := tempo.NewClient(baseURL, token, cfg.Tempo.AccountID)
+	attrs, err := client.GetWorkAttributes()
+	if err != nil {
+		return fmt.Errorf("fetch work attributes: %w", err)
+	}
+
+	if len(attrs) == 0 {
+		fmt.Println("No work attributes found.")
+		return nil
+	}
+
+	for _, a := range attrs {
+		header := fmt.Sprintf("%s (%s)", a.Name, a.Key)
+		if a.Required {
+			header += " [required]"
+		}
+		fmt.Println(header)
+		for _, v := range a.Values {
+			label := v
+			if a.Names != nil {
+				if name, ok := a.Names[v]; ok && name != "" {
+					label = name
+				}
+			}
+			if label != v {
+				fmt.Printf("  %s (%s)\n", label, v)
+			} else {
+				fmt.Printf("  %s\n", v)
+			}
+		}
+		fmt.Println()
+	}
 	return nil
 }
 

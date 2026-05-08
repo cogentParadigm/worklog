@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -23,10 +24,11 @@ type RoundingStep struct {
 }
 
 type TempoConfig struct {
-	BaseURL   string         `yaml:"base_url"`
-	Token     string         `yaml:"token"`
-	AccountID string         `yaml:"account_id"`
-	Rounding  []RoundingStep `yaml:"rounding,omitempty"`
+	BaseURL    string            `yaml:"base_url"`
+	Token      string            `yaml:"token"`
+	AccountID  string            `yaml:"account_id"`
+	Rounding   []RoundingStep    `yaml:"rounding,omitempty"`
+	Attributes map[string]string `yaml:"attributes,omitempty"`
 }
 
 type JiraConfig struct {
@@ -129,6 +131,8 @@ func (cfg *Config) Get(key string) (string, error) {
 		return "<hidden>", nil
 	case "tempo.rounding":
 		return roundingStepsString(cfg.Tempo.Rounding), nil
+	case "tempo.attributes":
+		return tempoAttributesString(cfg.Tempo.Attributes), nil
 	default:
 		return "", fmt.Errorf("unknown config key: %s", key)
 	}
@@ -146,6 +150,8 @@ func (cfg *Config) GetUnmasked(key string) (string, error) {
 		return cfg.Tempo.AccountID, nil
 	case "tempo.rounding":
 		return roundingStepsString(cfg.Tempo.Rounding), nil
+	case "tempo.attributes":
+		return tempoAttributesString(cfg.Tempo.Attributes), nil
 	case "jira.base_url":
 		return cfg.Jira.BaseURL, nil
 	case "jira.username":
@@ -173,6 +179,12 @@ func (cfg *Config) Set(key, value string) error {
 			return err
 		}
 		cfg.Tempo.Rounding = steps
+	case "tempo.attributes":
+		attrs, err := parseTempoAttributes(value)
+		if err != nil {
+			return err
+		}
+		cfg.Tempo.Attributes = attrs
 	case "jira.base_url":
 		cfg.Jira.BaseURL = value
 	case "jira.username":
@@ -187,12 +199,48 @@ func (cfg *Config) Set(key, value string) error {
 
 func isValidConfigKey(key string) bool {
 	switch key {
-	case "worklog_file", "tempo.base_url", "tempo.token", "tempo.account_id", "tempo.rounding",
+	case "worklog_file", "tempo.base_url", "tempo.token", "tempo.account_id", "tempo.rounding", "tempo.attributes",
 		"jira.base_url", "jira.username", "jira.token":
 		return true
 	default:
 		return false
 	}
+}
+
+func parseTempoAttributes(s string) (map[string]string, error) {
+	if s == "" {
+		return nil, nil
+	}
+	attrs := make(map[string]string)
+	for _, part := range strings.Split(s, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		eqIdx := strings.Index(part, "=")
+		if eqIdx < 0 {
+			return nil, fmt.Errorf("invalid tempo attribute %q: expected format key=value", part)
+		}
+		key := strings.TrimSpace(part[:eqIdx])
+		value := strings.TrimSpace(part[eqIdx+1:])
+		if key == "" {
+			return nil, fmt.Errorf("invalid tempo attribute %q: missing key", part)
+		}
+		attrs[key] = value
+	}
+	return attrs, nil
+}
+
+func tempoAttributesString(attrs map[string]string) string {
+	if len(attrs) == 0 {
+		return ""
+	}
+	var parts []string
+	for k, v := range attrs {
+		parts = append(parts, fmt.Sprintf("%s=%s", k, v))
+	}
+	sort.Strings(parts)
+	return strings.Join(parts, ",")
 }
 
 func expandTilde(path string) string {

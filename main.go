@@ -649,7 +649,8 @@ func runTaskUpdate(args []string) error {
 	updateDescription := updateCommand.String("description", "", "New description for the task")
 	updateParent := updateCommand.String("parent", "", "New parent UUID for the task")
 	updateIssueKey := updateCommand.String("issue-key", "", "Explicit Jira issue key for this task")
-	configureFlagSet(updateCommand, "Update an existing task. Only provided fields are changed.", "  worklog task update -uuid <uuid> -name \"New Name\"\n  worklog task update -uuid <uuid> -parent \"\"\n  worklog task update -uuid <uuid> -description \"Details\"")
+	updateAttrs := updateCommand.String("attr", "", "Tempo work attributes as comma-separated key=value pairs (e.g. _WorkType_=Development)")
+	configureFlagSet(updateCommand, "Update an existing task. Only provided fields are changed.", "  worklog task update -uuid <uuid> -name \"New Name\"\n  worklog task update -uuid <uuid> -parent \"\"\n  worklog task update -uuid <uuid> -description \"Details\"\n  worklog task update -uuid <uuid> -attr _WorkType_=Development")
 	if err := updateCommand.Parse(args); err != nil {
 		return err
 	}
@@ -664,6 +665,7 @@ func runTaskUpdate(args []string) error {
 	}
 
 	issueKeySet := false
+	attrSet := false
 	update := TaskUpdate{}
 	updateCommand.Visit(func(f *flag.Flag) {
 		switch f.Name {
@@ -675,6 +677,8 @@ func runTaskUpdate(args []string) error {
 			update.ParentUUID = updateParent
 		case "issue-key":
 			issueKeySet = true
+		case "attr":
+			attrSet = true
 		}
 	})
 
@@ -696,6 +700,31 @@ func runTaskUpdate(args []string) error {
 			})
 		}
 		task.properties = newProps
+	}
+
+	if attrSet {
+		task := worklog.FindTaskByUUID(*updateUUID)
+		if task == nil {
+			return fmt.Errorf("task with UUID '%s' not found", *updateUUID)
+		}
+		if *updateAttrs == "" {
+			// Clear all tempo attributes
+			var newProps []ics.IANAProperty
+			for _, prop := range task.properties {
+				if !strings.HasPrefix(prop.IANAToken, "X-WORKLOG-TEMPO-ATTR-") {
+					newProps = append(newProps, prop)
+				}
+			}
+			task.properties = newProps
+		} else {
+			attrs, err := parseTempoAttributes(*updateAttrs)
+			if err != nil {
+				return err
+			}
+			for k, v := range attrs {
+				task.SetTempoAttribute(k, v)
+			}
+		}
 	}
 
 	if err := worklog.Save(*updateOutput); err != nil {

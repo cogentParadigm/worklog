@@ -407,6 +407,62 @@ func TestIsValidConfigKey(t *testing.T) {
 	if isValidConfigKey("bogus") {
 		t.Error("expected bogus to be invalid")
 	}
+	if !isValidConfigKey("tempo.attributes") {
+		t.Error("expected tempo.attributes to be valid")
+	}
+}
+
+func TestParseTempoAttributes(t *testing.T) {
+	tests := []struct {
+		input   string
+		want    map[string]string
+		wantErr bool
+	}{
+		{"", nil, false},
+		{"_WorkType_=Development", map[string]string{"_WorkType_": "Development"}, false},
+		{"_WorkType_=Development, _Billable_=Yes", map[string]string{"_WorkType_": "Development", "_Billable_": "Yes"}, false},
+		{"invalid", nil, true},
+		{"=value", nil, true},
+	}
+	for _, tt := range tests {
+		got, err := parseTempoAttributes(tt.input)
+		if tt.wantErr {
+			if err == nil {
+				t.Errorf("parseTempoAttributes(%q) expected error, got nil", tt.input)
+			}
+			continue
+		}
+		if err != nil {
+			t.Errorf("parseTempoAttributes(%q) unexpected error: %v", tt.input, err)
+			continue
+		}
+		if len(got) != len(tt.want) {
+			t.Errorf("parseTempoAttributes(%q) len=%d, want %d", tt.input, len(got), len(tt.want))
+			continue
+		}
+		for k, v := range tt.want {
+			if got[k] != v {
+				t.Errorf("parseTempoAttributes(%q)[%q] = %q, want %q", tt.input, k, got[k], v)
+			}
+		}
+	}
+}
+
+func TestTempoAttributesConfigSetGet(t *testing.T) {
+	cfg := &Config{}
+	if err := cfg.Set("tempo.attributes", "_WorkType_=Development,_Billable_=Yes"); err != nil {
+		t.Fatalf("Set tempo.attributes: %v", err)
+	}
+	val, err := cfg.Get("tempo.attributes")
+	if err != nil {
+		t.Fatalf("Get tempo.attributes: %v", err)
+	}
+	if val != "_Billable_=Yes,_WorkType_=Development" {
+		t.Errorf("tempo.attributes: got %q", val)
+	}
+	if len(cfg.Tempo.Attributes) != 2 {
+		t.Errorf("expected 2 attributes, got %d", len(cfg.Tempo.Attributes))
+	}
 }
 
 func TestExpandTilde(t *testing.T) {
