@@ -146,7 +146,7 @@ func restoreFromSidecar(tasks []*Task, events []*Event, sc *Sidecar) {
 		}
 
 		if restored {
-			fmt.Fprintf(os.Stderr, "Restored metadata for task %q from sidecar (KTimeTracker may have stripped worklog properties)\n", task.name)
+			fmt.Fprintf(os.Stderr, "Restored metadata for task %q from sidecar (another application may have stripped worklog properties)\n", task.name)
 		}
 	}
 
@@ -158,7 +158,7 @@ func restoreFromSidecar(tasks []*Task, events []*Event, sc *Sidecar) {
 		if event.SyncedAt().IsZero() && meta.SyncedAt != "" {
 			if t, err := time.Parse("20060102T150405Z", meta.SyncedAt); err == nil {
 				event.SetSyncedAt(t)
-				fmt.Fprintf(os.Stderr, "Restored metadata for event %q from sidecar (KTimeTracker may have stripped worklog properties)\n", event.summary)
+				fmt.Fprintf(os.Stderr, "Restored metadata for event %q from sidecar (another application may have stripped worklog properties)\n", event.summary)
 			}
 		}
 	}

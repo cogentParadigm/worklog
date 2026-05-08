@@ -12,17 +12,17 @@
 4. Original calendar-level properties (`PRODID`, `VERSION`, `X-KDE-*`, etc.) are preserved.
 5. Brand-new tasks (UIDs not in the original) are appended at the end.
 
-This prevents data loss for KTimeTracker timer-session VEVENTs and any future unknown components.
+This prevents data loss for timer-session VEVENTs created by other applications and preserves any future unknown components.
 
 ### Sidecar Metadata File
 
-Because KTimeTracker strips unknown `X-WORKLOG-*` properties when it saves an `.ics` file, worklog maintains a sidecar file (`<ics>.worklog`) in JSON format:
+Some iCalendar applications strip unknown `X-WORKLOG-*` properties when they save an `.ics` file. To guard against this, worklog maintains a sidecar file (`<ics>.worklog`) in JSON format:
 
 - `loadSidecar` reads the sidecar on `NewWorklog`. If the `.ics` is missing properties that the sidecar expects, `restoreFromSidecar` re-injects them into the in-memory `Task`/`Event` objects and prints a notice to `stderr`.
 - `buildSidecar` extracts the current worklog-specific metadata (issue IDs, explicit issue keys, Tempo attributes, sync timestamps) from the task/event tree.
 - `saveSidecar` writes the JSON snapshot next to the output `.ics` file and records a SHA-256 hash of the `.ics` for future change-detection.
 
-The `.ics` file still contains all worklog properties on worklog-generated saves; the sidecar is purely a safety net for when KTimeTracker (or another tool) strips them.
+The `.ics` file still contains all worklog properties on worklog-generated saves; the sidecar is purely a safety net for when another application strips them.
 
 ### Task Tree Model
 
@@ -33,6 +33,10 @@ The `.ics` file still contains all worklog properties on worklog-generated saves
 ### Testing
 
 - Run tests with `go test ./...`
+
+### iCalendar Neutrality
+
+Do not assume users are running KTimeTracker or any specific desktop environment. Worklog is a generic iCalendar worklog manager. KTimeTracker was the original reference implementation, but the tool must remain neutral and compatible with any application that reads and writes standard `.ics` files.
 
 ## Working with Project Documents
 

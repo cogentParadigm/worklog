@@ -991,7 +991,7 @@ func runConfigSet(args []string) error {
 	return nil
 }
 
-func detectKTimeTrackerFiles() []string {
+func detectExistingICSFiles() []string {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return nil
@@ -1081,10 +1081,10 @@ func runInit(args []string) error {
 		}
 	} else {
 		// Interactive mode
-		detected := detectKTimeTrackerFiles()
+		detected := detectExistingICSFiles()
 		defaultPath := ""
 		if len(detected) > 0 {
-			fmt.Println("Detected existing KTimeTracker files:")
+			fmt.Println("Detected existing .ics files:")
 			for i, f := range detected {
 				fmt.Printf("  %d. %s\n", i+1, f)
 			}

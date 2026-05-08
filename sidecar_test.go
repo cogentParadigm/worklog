@@ -60,7 +60,7 @@ func TestSidecarRestoresStrippedTaskMetadata(t *testing.T) {
 		t.Fatal("sidecar not created")
 	}
 
-	// Simulate KTimeTracker stripping metadata: rewrite .ics without X-WORKLOG-*
+	// Simulate external tool stripping metadata: rewrite .ics without X-WORKLOG-*
 	cal2 := ics.NewCalendar()
 	todo2 := ics.VTodo{}
 	todo2.SetProperty(ics.ComponentPropertyUniqueId, "task-1")
@@ -127,7 +127,7 @@ func TestSidecarRestoresStrippedEventMetadata(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Simulate KTimeTracker stripping metadata
+	// Simulate external tool stripping metadata
 	cal2 := ics.NewCalendar()
 	ve2 := cal2.AddEvent("event-1")
 	ve2.SetStartAt(start)

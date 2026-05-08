@@ -1,16 +1,16 @@
 # Worklog
 
-A CLI worklog and time tracking tool compatible with [KTimeTracker](https://apps.kde.org/ktt/), with an extensible architecture for integrations.
+A CLI worklog and time tracking tool using standard iCalendar (`.ics`) files, with an extensible architecture for integrations.
 
 > ⚠️ **Work in Progress**: This tool is actively being developed. Core functionality works, but some features are incomplete.
 
 ## Overview
 
-Worklog reads and writes standard iCalendar (`.ics`) files, making it compatible with KTimeTracker and other calendar applications. It provides a simple command-line interface for managing tasks and time entries, with plans for integrations to external systems like Jira.
+Worklog reads and writes standard iCalendar (`.ics`) files, making it compatible with any calendar application that supports the format (including KTimeTracker). It provides a simple command-line interface for managing tasks and time entries, with plans for integrations to external systems like Jira.
 
 ## Features
 
-- **KTimeTracker Compatible**: Reads and writes standard `.ics` files with VTODO (tasks) and VEVENT (time entries)
+- **Standard iCalendar Format**: Reads and writes standard `.ics` files with VTODO (tasks) and VEVENT (time entries)
 - **Hierarchical Tasks**: Supports parent-child task relationships
 - **Simple CLI**: List, create, update, and delete tasks from the command line
 - **Time Entry Management**: Add, list, edit, and delete manual time entries with duration auto-recompute
@@ -63,7 +63,7 @@ worklog task create -file ~/source.ics -output ~/backup.ics -name "Backup task"
 
 ### `init`
 
-Initializes the worklog configuration interactively or via flags. Detects existing KTimeTracker `.ics` files and suggests them as the default worklog file. Creates a skeleton `.ics` file if one does not exist.
+Initializes the worklog configuration interactively or via flags. Detects existing `.ics` files (including common KTimeTracker locations) and suggests them as the default worklog file. Creates a skeleton `.ics` file if one does not exist.
 
 **Flags:**
 - `--worklog-file` — Default worklog `.ics` file path (skips interactive prompts when provided).
@@ -201,7 +201,7 @@ worklog task delete -file ~/tasks.ics -uuid <uuid> -force
 
 ### `time add`
 
-Adds a manual time entry for a task. If `-start` is omitted, the start time is computed as `now - duration`, matching KTimeTracker behavior.
+Adds a manual time entry for a task. If `-start` is omitted, the start time is computed as `now - duration`.
 
 **Flags:**
 - `-file` — Path to the `.ics` file (overrides `WORKLOG_FILE` environment variable).
@@ -435,18 +435,18 @@ The input file is resolved in this order:
 
 If none are set, the command exits with an error.
 
-All existing VEVENT components (KTimeTracker timer sessions), calendar-level properties, and any unknown iCalendar components are preserved exactly across saves.
+All existing VEVENT components (timer sessions from other apps), calendar-level properties, and any unknown iCalendar components are preserved exactly across saves.
 
-**Sidecar file:** Worklog creates a `.worklog` sidecar file next to each `.ics` it saves (e.g., `tasks.ics.worklog`). This JSON file stores worklog-specific metadata such as cached Jira issue IDs and Tempo attributes. If KTimeTracker strips these properties when it saves the `.ics`, worklog automatically restores them from the sidecar on the next load and prints a notice to stderr.
+**Sidecar file:** Worklog creates a `.worklog` sidecar file next to each `.ics` it saves (e.g., `tasks.ics.worklog`). This JSON file stores worklog-specific metadata such as cached Jira issue IDs and Tempo attributes. If another application strips these properties when it saves the `.ics`, worklog automatically restores them from the sidecar on the next load and prints a notice to stderr.
 
-## KTimeTracker Compatibility
+## iCalendar Compatibility
 
 Worklog uses the standard iCalendar format:
 
 - **VTODO components** represent tasks with SUMMARY, DESCRIPTION, UID, and RELATED-TO (for parent relationships)
-- **VEVENT components** represent time entries with DTSTART/DTEND, RELATED-TO (linking to tasks), and KTimeTracker-specific extensions
+- **VEVENT components** represent time entries with DTSTART/DTEND, RELATED-TO (linking to tasks), and duration
 
-Your existing KTimeTracker data will be preserved and readable by this tool.
+Existing data from KTimeTracker and other iCalendar applications will be preserved and readable by this tool.
 
 ## Integrations
 

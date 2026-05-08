@@ -32,11 +32,10 @@ func NewEvent(taskUUID string, start, end time.Time, duration int, note, comment
 		summary:   note,
 		comment:   comment,
 		properties: []ics.IANAProperty{
-			{BaseProperty: ics.BaseProperty{IANAToken: "DTSTAMP", Value: now.Format("20060102T150405Z")}},
-			{BaseProperty: ics.BaseProperty{IANAToken: "CREATED", Value: now.Format("20060102T150405Z")}},
-			{BaseProperty: ics.BaseProperty{IANAToken: "LAST-MODIFIED", Value: now.Format("20060102T150405Z")}},
-			{BaseProperty: ics.BaseProperty{IANAToken: "CATEGORIES", Value: "KTimeTracker"}},
-			{BaseProperty: ics.BaseProperty{IANAToken: "TRANSP", Value: "OPAQUE"}},
+		{BaseProperty: ics.BaseProperty{IANAToken: "DTSTAMP", Value: now.Format("20060102T150405Z")}},
+		{BaseProperty: ics.BaseProperty{IANAToken: "CREATED", Value: now.Format("20060102T150405Z")}},
+		{BaseProperty: ics.BaseProperty{IANAToken: "LAST-MODIFIED", Value: now.Format("20060102T150405Z")}},
+		{BaseProperty: ics.BaseProperty{IANAToken: "TRANSP", Value: "OPAQUE"}},
 		},
 	}
 }
@@ -169,10 +168,6 @@ func makeVEventForEvent(event *Event) ics.VEvent {
 			ve.SetEndAt(event.dtend)
 		}
 	}
-	if !emitted["X-KDE-ktimetracker-duration"] && event.duration > 0 {
-		ve.SetProperty("X-KDE-ktimetracker-duration", strconv.Itoa(event.duration))
-	}
-
 	return ve
 }
 

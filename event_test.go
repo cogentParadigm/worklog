@@ -37,7 +37,6 @@ func TestNewEvent(t *testing.T) {
 	hasDTSTAMP := false
 	hasCREATED := false
 	hasLASTMOD := false
-	hasCATEGORIES := false
 	hasTRANSP := false
 	for _, prop := range event.properties {
 		switch prop.IANAToken {
@@ -47,10 +46,6 @@ func TestNewEvent(t *testing.T) {
 			hasCREATED = true
 		case "LAST-MODIFIED":
 			hasLASTMOD = true
-		case "CATEGORIES":
-			if prop.Value == "KTimeTracker" {
-				hasCATEGORIES = true
-			}
 		case "TRANSP":
 			if prop.Value == "OPAQUE" {
 				hasTRANSP = true
@@ -65,9 +60,6 @@ func TestNewEvent(t *testing.T) {
 	}
 	if !hasLASTMOD {
 		t.Error("Expected LAST-MODIFIED property")
-	}
-	if !hasCATEGORIES {
-		t.Error("Expected CATEGORIES:KTimeTracker property")
 	}
 	if !hasTRANSP {
 		t.Error("Expected TRANSP:OPAQUE property")
@@ -109,16 +101,6 @@ func TestMakeVEventForEvent_NewEvent(t *testing.T) {
 	dtend := ve.GetProperty(ics.ComponentPropertyDtEnd)
 	if dtend == nil {
 		t.Error("Expected DTEND to be set")
-	}
-
-	dur := ve.GetProperty("X-KDE-ktimetracker-duration")
-	if dur == nil || dur.Value != "3600" {
-		t.Error("Expected X-KDE-ktimetracker-duration to be 3600")
-	}
-
-	cat := ve.GetProperty("CATEGORIES")
-	if cat == nil || cat.Value != "KTimeTracker" {
-		t.Error("Expected CATEGORIES:KTimeTracker")
 	}
 
 	transp := ve.GetProperty("TRANSP")
