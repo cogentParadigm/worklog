@@ -301,6 +301,26 @@ worklog report timesheet -format csv -decimal
 worklog report timesheet -all -hide-empty
 ```
 
+### `jira resolve`
+
+Resolves Jira issue keys to numeric IDs and caches them on tasks. This is useful for progressive testing of Jira connectivity before running a full sync. Only Jira configuration is required — Tempo credentials are not needed.
+
+Issue keys are read from task names (auto-detected via regex) or the explicit `X-WORKLOG-ISSUE-KEY` property. Tasks that already have a cached `X-WORKLOG-ISSUE-ID` are skipped.
+
+**Flags:**
+- `-file` — Path to the `.ics` file (overrides `WORKLOG_FILE`).
+- `-output` — Output path for the updated `.ics` file. If omitted, writes back to the input file.
+- `-task` — Resolve only a specific task UUID (optional).
+
+**Examples:**
+```bash
+# Resolve all issue keys across all tasks
+worklog jira resolve
+
+# Resolve a single task
+worklog jira resolve --task <uuid>
+```
+
 ### `jira sync`
 
 Syncs time entries to Tempo Cloud (Jira). Entries are **merged by task and date** before sending: multiple small entries on the same day for the same task are summed into a single worklog with combined comments. By default, only unsynced entries are sent.
