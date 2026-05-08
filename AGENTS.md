@@ -14,6 +14,16 @@
 
 This prevents data loss for KTimeTracker timer-session VEVENTs and any future unknown components.
 
+### Sidecar Metadata File
+
+Because KTimeTracker strips unknown `X-WORKLOG-*` properties when it saves an `.ics` file, worklog maintains a sidecar file (`<ics>.worklog`) in JSON format:
+
+- `loadSidecar` reads the sidecar on `NewWorklog`. If the `.ics` is missing properties that the sidecar expects, `restoreFromSidecar` re-injects them into the in-memory `Task`/`Event` objects and prints a notice to `stderr`.
+- `buildSidecar` extracts the current worklog-specific metadata (issue IDs, explicit issue keys, Tempo attributes, sync timestamps) from the task/event tree.
+- `saveSidecar` writes the JSON snapshot next to the output `.ics` file and records a SHA-256 hash of the `.ics` for future change-detection.
+
+The `.ics` file still contains all worklog properties on worklog-generated saves; the sidecar is purely a safety net for when KTimeTracker (or another tool) strips them.
+
 ### Task Tree Model
 
 - `Task` has `parent`, `children`, `uuid`, `name`, `description`, `position`, and `properties`.

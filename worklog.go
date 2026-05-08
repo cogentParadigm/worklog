@@ -24,6 +24,13 @@ func NewWorklog(path string) (*Worklog, error) {
 	tasks := makeTasksForTodos(todos)
 	vevents := getEvents(cal)
 	events := makeEventsForVEvents(vevents)
+
+	sc, err := loadSidecar(path)
+	if err != nil {
+		return nil, fmt.Errorf("load sidecar: %w", err)
+	}
+	restoreFromSidecar(tasks, events, sc)
+
 	return &Worklog{path: path, tasks: tasks, events: events, nextPosition: len(todos), calendar: cal}, nil
 }
 
@@ -300,5 +307,14 @@ func (worklog *Worklog) Save(outputPath string) error {
 	if err := saveCalendar(outPath, cal); err != nil {
 		return fmt.Errorf("save worklog: %w", err)
 	}
+
+	sc := buildSidecar(worklog.tasks, worklog.events)
+	if hash, err := hashFile(outPath); err == nil {
+		sc.LastHash = hash
+	}
+	if err := saveSidecar(outPath, sc); err != nil {
+		return fmt.Errorf("save sidecar: %w", err)
+	}
+
 	return nil
 }

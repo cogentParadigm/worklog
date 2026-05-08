@@ -437,6 +437,8 @@ If none are set, the command exits with an error.
 
 All existing VEVENT components (KTimeTracker timer sessions), calendar-level properties, and any unknown iCalendar components are preserved exactly across saves.
 
+**Sidecar file:** Worklog creates a `.worklog` sidecar file next to each `.ics` it saves (e.g., `tasks.ics.worklog`). This JSON file stores worklog-specific metadata such as cached Jira issue IDs and Tempo attributes. If KTimeTracker strips these properties when it saves the `.ics`, worklog automatically restores them from the sidecar on the next load and prints a notice to stderr.
+
 ## KTimeTracker Compatibility
 
 Worklog uses the standard iCalendar format:
