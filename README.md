@@ -167,6 +167,7 @@ Updates an existing task. Only the fields you provide are changed.
 - `-description` — New description for the task.
 - `-parent` — New parent UUID for the task. Set to an empty string to move the task to the root level.
 - `-issue-key` — Explicit Jira issue key for this task. Set to an empty string to clear it.
+- `-attr` — Tempo work attributes as comma-separated `key=value` pairs (e.g., `_WorkType_=Development`). Set to an empty string to clear all attributes.
 
 Cycle detection prevents a task from being set as its own parent or moved under one of its descendants.
 
@@ -176,6 +177,8 @@ worklog task update -uuid <uuid> -name "Updated Name"
 worklog task update -file ~/tasks.ics -uuid <uuid> -description "New details"
 worklog task update -uuid <uuid> -parent ""
 worklog task update -uuid <uuid> -issue-key PROJ-456
+worklog task update -uuid <uuid> -attr _WorkType_=Development
+worklog task update -uuid <uuid> -attr _WorkType_=Development,_Billable_=Yes
 ```
 
 ### `task delete`
@@ -323,11 +326,22 @@ worklog jira resolve
 worklog jira resolve --task <uuid>
 ```
 
+### `jira attributes`
+
+Lists available Tempo work attributes and their allowed values. This is useful for discovering which attribute keys and values your Tempo instance expects.
+
+**Examples:**
+```bash
+worklog jira attributes
+```
+
 ### `jira sync`
 
 Syncs time entries to Tempo Cloud (Jira). Entries are **merged by task and date** before sending: multiple small entries on the same day for the same task are summed into a single worklog with combined comments. By default, only unsynced entries are sent.
 
 Issue keys are auto-detected from task names (e.g., `PROJ-123`) or set explicitly via `-issue-key`. Before sending, issue keys are resolved to numeric Jira issue IDs via the Jira REST API. Resolved IDs are cached on the task as `X-WORKLOG-ISSUE-ID` so subsequent syncs skip the lookup.
+
+**Tempo work attributes:** Work attributes (such as `_WorkType_`) can be sent with each worklog. Attributes are set per-task using `worklog task update -attr key=value`. They are also merged with any `tempo.attributes` defined in `config.yaml`, with task-level values taking precedence.
 
 **Flags:**
 - `-file` — Path to the `.ics` file (overrides `WORKLOG_FILE`).
@@ -389,6 +403,8 @@ tempo:
       to: 1m
     - step: ceil
       to: 5m
+  attributes:
+    _WorkType_: Development
 
 jira:
   base_url: https://mycompany.atlassian.net
