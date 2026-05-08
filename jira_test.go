@@ -610,3 +610,29 @@ func TestTruncate(t *testing.T) {
 		t.Errorf("truncated: got %q, want %q", got, "this is...")
 	}
 }
+
+func TestCollectAllTasks(t *testing.T) {
+	root1 := NewTask("Root 1")
+	child1 := NewTask("Child 1")
+	grandchild1 := NewTask("Grandchild 1")
+	root2 := NewTask("Root 2")
+
+	root1.children = []*Task{child1}
+	child1.parent = root1
+	child1.children = []*Task{grandchild1}
+	grandchild1.parent = child1
+
+	tasks := []*Task{root1, root2}
+	all := collectAllTasks(tasks)
+
+	if len(all) != 4 {
+		t.Fatalf("expected 4 tasks, got %d", len(all))
+	}
+
+	want := []string{"Root 1", "Child 1", "Grandchild 1", "Root 2"}
+	for i, task := range all {
+		if task.name != want[i] {
+			t.Errorf("task %d: got %q, want %q", i, task.name, want[i])
+		}
+	}
+}
