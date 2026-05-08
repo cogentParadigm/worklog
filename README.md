@@ -71,6 +71,7 @@ Initializes the worklog configuration interactively or via flags. Detects existi
 - `--tempo-account-id` — Atlassian account ID.
 - `--tempo-token` — Tempo API token.
 - `--jira-base-url` — Jira base URL.
+- `--jira-username` — Jira username.
 - `--jira-token` — Jira API token.
 - `--skip-tempo` — Skip Tempo configuration.
 - `--skip-jira` — Skip Jira configuration.
@@ -83,7 +84,7 @@ worklog init
 
 # Non-interactive
 worklog init --worklog-file ~/tasks.ics
-worklog init --worklog-file ~/tasks.ics --tempo-token pass:worklog/tempo-token --jira-token pass:worklog/jira-token
+worklog init --worklog-file ~/tasks.ics --tempo-token pass:worklog/tempo-token --jira-username user@example.com --jira-token pass:worklog/jira-token
 ```
 
 ### `config path`
@@ -381,6 +382,7 @@ tempo:
 
 jira:
   base_url: https://mycompany.atlassian.net
+  username: user@example.com
   token: my-jira-token
 ```
 
@@ -392,7 +394,7 @@ jira:
   token: "pass:worklog/jira-token"
 ```
 
-For Jira Cloud, the `jira.token` should be formatted as `email:api_token` (used with Basic auth). For Jira Data Center or Personal Access Tokens, provide the token directly (used with Bearer auth).
+Jira authentication uses Basic auth with `base64(username:token)`. Set `jira.username` to your Atlassian account email and `jira.token` to your Jira API token.
 
 ## File I/O
 

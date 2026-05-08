@@ -73,6 +73,7 @@ tempo:
   account_id: abc-123
 jira:
   base_url: https://mycompany.atlassian.net
+  username: user@example.com
   token: jira-secret-token
 `
 	configDir := filepath.Join(tmpDir, "worklog")
@@ -102,6 +103,9 @@ jira:
 	}
 	if cfg.Jira.BaseURL != "https://mycompany.atlassian.net" {
 		t.Errorf("jira.base_url: got %q, want %q", cfg.Jira.BaseURL, "https://mycompany.atlassian.net")
+	}
+	if cfg.Jira.Username != "user@example.com" {
+		t.Errorf("jira.username: got %q, want %q", cfg.Jira.Username, "user@example.com")
 	}
 	if cfg.Jira.Token != "jira-secret-token" {
 		t.Errorf("jira.token: got %q, want %q", cfg.Jira.Token, "jira-secret-token")
@@ -302,6 +306,25 @@ func TestConfigGetSet(t *testing.T) {
 		t.Errorf("expected empty, got %q", val)
 	}
 
+	// Jira username visible by default
+	cfg.Jira.Username = "user@example.com"
+	val, err = cfg.Get("jira.username")
+	if err != nil {
+		t.Fatalf("Get jira.username: %v", err)
+	}
+	if val != "user@example.com" {
+		t.Errorf("expected user@example.com, got %q", val)
+	}
+
+	// Unmasked jira username
+	val, err = cfg.GetUnmasked("jira.username")
+	if err != nil {
+		t.Fatalf("GetUnmasked jira.username: %v", err)
+	}
+	if val != "user@example.com" {
+		t.Errorf("expected user@example.com, got %q", val)
+	}
+
 	// Jira token hidden by default
 	cfg.Jira.Token = "jira-secret"
 	val, err = cfg.Get("jira.token")
@@ -332,7 +355,7 @@ func TestConfigGetSet(t *testing.T) {
 }
 
 func TestIsValidConfigKey(t *testing.T) {
-	for _, key := range []string{"worklog_file", "tempo.base_url", "tempo.token", "tempo.account_id", "jira.base_url", "jira.token"} {
+	for _, key := range []string{"worklog_file", "tempo.base_url", "tempo.token", "tempo.account_id", "jira.base_url", "jira.username", "jira.token"} {
 		if !isValidConfigKey(key) {
 			t.Errorf("expected %q to be valid", key)
 		}

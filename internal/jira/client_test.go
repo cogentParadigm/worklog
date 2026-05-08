@@ -20,15 +20,18 @@ func TestGetIssueIDSuccess(t *testing.T) {
 			t.Errorf("expected fields=id, got %s", q.Get("fields"))
 		}
 		auth := r.Header.Get("Authorization")
-		if auth != "Bearer test-token" {
-			t.Errorf("expected Bearer test-token, got %s", auth)
+		if auth == "" {
+			t.Errorf("expected Authorization header")
+		}
+		if len(auth) < 6 || auth[:6] != "Basic " {
+			t.Errorf("expected Basic auth, got %s", auth)
 		}
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(map[string]interface{}{"id": "10001"})
 	}))
 	defer server.Close()
 
-	client := NewClient(server.URL, "test-token")
+	client := NewClient(server.URL, "user", "test-token")
 	id, err := client.GetIssueID("PROJ-123")
 	if err != nil {
 		t.Fatalf("GetIssueID: %v", err)
@@ -53,7 +56,7 @@ func TestGetIssueIDBasicAuth(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient(server.URL, "user@example.com:api-token")
+	client := NewClient(server.URL, "user@example.com", "api-token")
 	id, err := client.GetIssueID("FOO-1")
 	if err != nil {
 		t.Fatalf("GetIssueID: %v", err)
@@ -70,7 +73,7 @@ func TestGetIssueIDError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient(server.URL, "bad-token")
+	client := NewClient(server.URL, "user", "bad-token")
 	_, err := client.GetIssueID("MISSING-1")
 	if err == nil {
 		t.Fatal("expected error for 404 response")
@@ -82,7 +85,7 @@ func TestGetIssueIDError(t *testing.T) {
 }
 
 func TestGetIssueIDNetworkError(t *testing.T) {
-	client := NewClient("http://localhost:1", "token")
+	client := NewClient("http://localhost:1", "user", "token")
 	_, err := client.GetIssueID("PROJ-1")
 	if err == nil {
 		t.Fatal("expected network error")
@@ -90,7 +93,7 @@ func TestGetIssueIDNetworkError(t *testing.T) {
 }
 
 func TestGetIssueIDMissingBaseURL(t *testing.T) {
-	client := NewClient("", "token")
+	client := NewClient("", "user", "token")
 	_, err := client.GetIssueID("PROJ-1")
 	if err == nil {
 		t.Fatal("expected error for missing base URL")

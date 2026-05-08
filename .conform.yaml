@@ -22,4 +22,5 @@ policies:
           - "style"
           - "test"
         scopes:
+          - "jira"
           - "release"

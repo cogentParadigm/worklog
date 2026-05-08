@@ -24,8 +24,9 @@ type TempoConfig struct {
 }
 
 type JiraConfig struct {
-	BaseURL string `yaml:"base_url"`
-	Token   string `yaml:"token"`
+	BaseURL  string `yaml:"base_url"`
+	Username string `yaml:"username"`
+	Token    string `yaml:"token"`
 }
 
 func LoadConfig() (*Config, error) {
@@ -113,6 +114,8 @@ func (cfg *Config) Get(key string) (string, error) {
 		return cfg.Tempo.AccountID, nil
 	case "jira.base_url":
 		return cfg.Jira.BaseURL, nil
+	case "jira.username":
+		return cfg.Jira.Username, nil
 	case "jira.token":
 		if cfg.Jira.Token == "" {
 			return "", nil
@@ -135,6 +138,8 @@ func (cfg *Config) GetUnmasked(key string) (string, error) {
 		return cfg.Tempo.AccountID, nil
 	case "jira.base_url":
 		return cfg.Jira.BaseURL, nil
+	case "jira.username":
+		return cfg.Jira.Username, nil
 	case "jira.token":
 		return cfg.Jira.Token, nil
 	default:
@@ -154,6 +159,8 @@ func (cfg *Config) Set(key, value string) error {
 		cfg.Tempo.AccountID = value
 	case "jira.base_url":
 		cfg.Jira.BaseURL = value
+	case "jira.username":
+		cfg.Jira.Username = value
 	case "jira.token":
 		cfg.Jira.Token = value
 	default:
@@ -165,7 +172,7 @@ func (cfg *Config) Set(key, value string) error {
 func isValidConfigKey(key string) bool {
 	switch key {
 	case "worklog_file", "tempo.base_url", "tempo.token", "tempo.account_id",
-		"jira.base_url", "jira.token":
+		"jira.base_url", "jira.username", "jira.token":
 		return true
 	default:
 		return false

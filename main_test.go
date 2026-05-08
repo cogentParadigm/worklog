@@ -642,6 +642,7 @@ func TestInitSetsJiraConfig(t *testing.T) {
 	err := run([]string{
 		"init", "--worklog-file", icsPath,
 		"--jira-base-url", "https://jira.example.com",
+		"--jira-username", "user@example.com",
 		"--jira-token", "jira-secret",
 	})
 	if err != nil {
@@ -652,6 +653,9 @@ func TestInitSetsJiraConfig(t *testing.T) {
 	data, _ := os.ReadFile(configFile)
 	if !strings.Contains(string(data), "https://jira.example.com") {
 		t.Errorf("config missing jira.base_url")
+	}
+	if !strings.Contains(string(data), "user@example.com") {
+		t.Errorf("config missing jira.username")
 	}
 	if !strings.Contains(string(data), "jira-secret") {
 		t.Errorf("config missing jira.token")

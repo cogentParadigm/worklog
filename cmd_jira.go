@@ -85,7 +85,10 @@ func runJiraResolve(args []string) error {
 	if cfg.Jira.BaseURL == "" {
 		return fmt.Errorf("jira.base_url not configured")
 	}
-	jiraClient := jira.NewClient(cfg.Jira.BaseURL, jiraToken)
+	if cfg.Jira.Username == "" {
+		return fmt.Errorf("jira.username not configured")
+	}
+	jiraClient := jira.NewClient(cfg.Jira.BaseURL, cfg.Jira.Username, jiraToken)
 
 	var tasks []*Task
 	if *resolveTask != "" {
@@ -173,7 +176,10 @@ func runJiraSync(args []string) error {
 	}
 	var jiraClient *jira.Client
 	if cfg.Jira.BaseURL != "" {
-		jiraClient = jira.NewClient(cfg.Jira.BaseURL, jiraToken)
+		if cfg.Jira.Username == "" {
+			return fmt.Errorf("jira.username not configured")
+		}
+		jiraClient = jira.NewClient(cfg.Jira.BaseURL, cfg.Jira.Username, jiraToken)
 	}
 
 	var fromDay, toDay time.Time
@@ -242,7 +248,7 @@ func runJiraSync(args []string) error {
 		issueID := e.task.IssueID()
 		if issueID == "" {
 			if jiraClient == nil {
-				return fmt.Errorf("jira.base_url and jira.token required to resolve issue key %s", e.issueKey)
+				return fmt.Errorf("jira.base_url, jira.username, and jira.token required to resolve issue key %s", e.issueKey)
 			}
 			id, err := jiraClient.GetIssueID(e.issueKey)
 			if err != nil {

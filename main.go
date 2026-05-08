@@ -1011,11 +1011,12 @@ func runInit(args []string) error {
 	tempoAccountID := initCommand.String("tempo-account-id", "", "Atlassian account ID")
 	tempoToken := initCommand.String("tempo-token", "", "Tempo API token")
 	jiraBaseURL := initCommand.String("jira-base-url", "", "Jira base URL")
+	jiraUsername := initCommand.String("jira-username", "", "Jira username")
 	jiraToken := initCommand.String("jira-token", "", "Jira API token")
 	skipTempo := initCommand.Bool("skip-tempo", false, "Skip Tempo configuration")
 	skipJira := initCommand.Bool("skip-jira", false, "Skip Jira configuration")
 	force := initCommand.Bool("force", false, "Overwrite existing config")
-	configureFlagSet(initCommand, "Initialize worklog configuration.", "  worklog init\n  worklog init --worklog-file ~/tasks.ics\n  worklog init --worklog-file ~/tasks.ics --tempo-token pass:worklog/token --jira-token pass:worklog/jira-token")
+	configureFlagSet(initCommand, "Initialize worklog configuration.", "  worklog init\n  worklog init --worklog-file ~/tasks.ics\n  worklog init --worklog-file ~/tasks.ics --tempo-token pass:worklog/token --jira-username user@example.com --jira-token pass:worklog/jira-token")
 	if err := initCommand.Parse(args); err != nil {
 		return err
 	}
@@ -1038,6 +1039,7 @@ func runInit(args []string) error {
 		}
 		if !*skipJira {
 			cfg.Jira.BaseURL = *jiraBaseURL
+			cfg.Jira.Username = *jiraUsername
 			cfg.Jira.Token = *jiraToken
 		}
 	} else {
@@ -1108,6 +1110,8 @@ func runInit(args []string) error {
 		if strings.ToLower(strings.TrimSpace(jiraResponse)) == "y" {
 			fmt.Print("Jira base URL: ")
 			fmt.Scanln(&cfg.Jira.BaseURL)
+			fmt.Print("Jira username: ")
+			fmt.Scanln(&cfg.Jira.Username)
 			fmt.Print("Jira API token: ")
 			fmt.Scanln(&cfg.Jira.Token)
 			if cfg.Jira.Token != "" && !strings.HasPrefix(cfg.Jira.Token, "pass:") {

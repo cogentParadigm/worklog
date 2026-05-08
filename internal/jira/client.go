@@ -5,21 +5,22 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 )
 
 type Client struct {
-	baseURL string
-	token   string
-	client  *http.Client
+	baseURL  string
+	username string
+	token    string
+	client   *http.Client
 }
 
-func NewClient(baseURL, token string) *Client {
+func NewClient(baseURL, username, token string) *Client {
 	return &Client{
-		baseURL: baseURL,
-		token:   token,
-		client:  &http.Client{Timeout: 30 * time.Second},
+		baseURL:  baseURL,
+		username: username,
+		token:    token,
+		client:   &http.Client{Timeout: 30 * time.Second},
 	}
 }
 
@@ -28,10 +29,7 @@ type issueResponse struct {
 }
 
 func (c *Client) authHeader() string {
-	if strings.Contains(c.token, ":") {
-		return "Basic " + base64.StdEncoding.EncodeToString([]byte(c.token))
-	}
-	return "Bearer " + c.token
+	return "Basic " + base64.StdEncoding.EncodeToString([]byte(c.username+":"+c.token))
 }
 
 func (c *Client) GetIssueID(issueKey string) (string, error) {
