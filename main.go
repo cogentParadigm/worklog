@@ -145,11 +145,11 @@ func run(args []string) error {
 			timeAddCommand := flag.NewFlagSet("time add", flag.ContinueOnError)
 			timeAddFile := timeAddCommand.String("file", "", "Path to .ics file (overrides WORKLOG_FILE)")
 			timeAddOutput := timeAddCommand.String("output", "", "Output path for the updated .ics file (defaults to input file)")
-			timeAddTask := timeAddCommand.String("task", "", "UUID of the task to log time against (required)")
+			timeAddTask := timeAddCommand.String("task", "", "UUID (or short unique prefix) of the task to log time against (required)")
 			timeAddDuration := timeAddCommand.String("duration", "", "Duration to log (e.g., 30m, 1h30m, 3600s) (required)")
 			timeAddStart := timeAddCommand.String("start", "", "Start time (optional, defaults to now-duration)")
 			timeAddComment := timeAddCommand.String("comment", "", "Comment for the time entry (optional)")
-			configureFlagSet(timeAddCommand, "Add a manual time entry for a task. If -start is omitted, the start time is computed as now - duration.", "  worklog time add -task <uuid> -duration 30m\n  worklog time add -task <uuid> -duration 1h -start \"2023-08-14 09:00:00\"\n  worklog time add -task <uuid> -duration 3600s -comment \"Reviewed with team\"")
+			configureFlagSet(timeAddCommand, "Add a manual time entry for a task. If -start is omitted, the start time is computed as now - duration.", "  worklog time add -task <short-uuid> -duration 30m\n  worklog time add -task <short-uuid> -duration 1h -start \"2023-08-14 09:00:00\"\n  worklog time add -task <short-uuid> -duration 3600s -comment \"Reviewed with team\"")
 			if err := timeAddCommand.Parse(timeArgs); err != nil {
 				return err
 			}
@@ -166,9 +166,9 @@ func run(args []string) error {
 				return fmt.Errorf("-duration flag is required for time add")
 			}
 
-			task := worklog.FindTaskByUUID(*timeAddTask)
-			if task == nil {
-				return fmt.Errorf("task with UUID '%s' not found", *timeAddTask)
+			task, err := resolveTaskUUID(worklog, *timeAddTask)
+			if err != nil {
+				return err
 			}
 
 			duration, err := parseDurationFlag(*timeAddDuration)
@@ -192,7 +192,7 @@ func run(args []string) error {
 				start = end.Add(-time.Duration(duration) * time.Second)
 			}
 
-			event := NewEvent(*timeAddTask, start, end, duration, task.name, *timeAddComment)
+			event := NewEvent(task.uuid, start, end, duration, task.name, *timeAddComment)
 			worklog.AddEvent(event)
 			if err := worklog.Save(*timeAddOutput); err != nil {
 				return err
@@ -201,11 +201,11 @@ func run(args []string) error {
 		case "list":
 			timeListCommand := flag.NewFlagSet("time list", flag.ContinueOnError)
 			timeListFile := timeListCommand.String("file", "", "Path to .ics file (overrides WORKLOG_FILE)")
-			timeListTask := timeListCommand.String("task", "", "Filter to a specific task UUID (optional)")
+			timeListTask := timeListCommand.String("task", "", "Filter to a specific task UUID (or short unique prefix) (optional)")
 			timeListFrom := timeListCommand.String("from", "", "Filter events starting on or after this date (YYYY-MM-DD)")
 			timeListTo := timeListCommand.String("to", "", "Filter events starting on or before this date (YYYY-MM-DD)")
 			timeListSearch := timeListCommand.String("search", "", "Filter by case-insensitive search in task name, description, or comment")
-			configureFlagSet(timeListCommand, "List time entries sorted by start time (most recent first).", "  worklog time list\n  worklog time list -task <uuid>\n  worklog time list -from 2023-08-01 -to 2023-08-15\n  worklog time list -search meeting")
+			configureFlagSet(timeListCommand, "List time entries sorted by start time (most recent first).", "  worklog time list\n  worklog time list -task <short-uuid>\n  worklog time list -from 2023-08-01 -to 2023-08-15\n  worklog time list -search meeting")
 			if err := timeListCommand.Parse(timeArgs); err != nil {
 				return err
 			}
@@ -234,9 +234,13 @@ func run(args []string) error {
 
 			events := worklog.GetEvents()
 			if *timeListTask != "" {
+				task, err := resolveTaskUUID(worklog, *timeListTask)
+				if err != nil {
+					return err
+				}
 				var filtered []*Event
 				for _, event := range events {
-					if event.relatedTo == *timeListTask {
+					if event.relatedTo == task.uuid {
 						filtered = append(filtered, event)
 					}
 				}
@@ -282,7 +286,16 @@ func run(args []string) error {
 				return events[i].dtstart.After(events[j].dtstart)
 			})
 
-			fmt.Printf("%-36s %-30s %-20s %-20s %-10s\n", "UUID", "Task", "Start", "End", "Duration")
+			allEventUUIDs := worklog.allEventUUIDs()
+			shortEventUUIDs := shortUUIDs(allEventUUIDs)
+			maxShortLen := 4
+			for _, su := range shortEventUUIDs {
+				if len(su) > maxShortLen {
+					maxShortLen = len(su)
+				}
+			}
+
+			fmt.Printf("%-*s %-30s %-20s %-20s %-10s\n", maxShortLen, "UUID", "Task", "Start", "End", "Duration")
 			for _, event := range events {
 				taskName := "(orphaned task)"
 				if task := worklog.FindTaskByUUID(event.relatedTo); task != nil {
@@ -297,18 +310,18 @@ func run(args []string) error {
 					endStr = event.dtend.Format("2006-01-02 15:04:05")
 				}
 				durStr := time.Duration(event.duration * int(time.Second)).String()
-				fmt.Printf("%-36s %-30s %-20s %-20s %-10s\n", event.uuid, taskName, startStr, endStr, durStr)
+				fmt.Printf("%-*s %-30s %-20s %-20s %-10s\n", maxShortLen, shortEventUUIDs[event.uuid], taskName, startStr, endStr, durStr)
 			}
 		case "edit":
 			timeEditCommand := flag.NewFlagSet("time edit", flag.ContinueOnError)
 			timeEditFile := timeEditCommand.String("file", "", "Path to .ics file (overrides WORKLOG_FILE)")
 			timeEditOutput := timeEditCommand.String("output", "", "Output path for the updated .ics file (defaults to input file)")
-			timeEditUUID := timeEditCommand.String("uuid", "", "UUID of the time entry to edit (required)")
+			timeEditUUID := timeEditCommand.String("uuid", "", "UUID (or short unique prefix) of the time entry to edit (required)")
 			timeEditStart := timeEditCommand.String("start", "", "New start time")
 			timeEditEnd := timeEditCommand.String("end", "", "New end time")
 			timeEditDuration := timeEditCommand.String("duration", "", "New duration (e.g., 30m, 1h30m)")
 			timeEditComment := timeEditCommand.String("comment", "", "New comment")
-			configureFlagSet(timeEditCommand, "Edit an existing time entry. Only provided fields are changed. Duration is automatically recomputed when start or end is modified.", "  worklog time edit -uuid <event-uuid> -comment \"Updated\"\n  worklog time edit -uuid <event-uuid> -start \"2023-08-14 10:00:00\" -end \"2023-08-14 11:30:00\"")
+			configureFlagSet(timeEditCommand, "Edit an existing time entry. Only provided fields are changed. Duration is automatically recomputed when start or end is modified.", "  worklog time edit -uuid <short-uuid> -comment \"Updated\"\n  worklog time edit -uuid <short-uuid> -start \"2023-08-14 10:00:00\" -end \"2023-08-14 11:30:00\"")
 			if err := timeEditCommand.Parse(timeArgs); err != nil {
 				return err
 			}
@@ -352,7 +365,11 @@ func run(args []string) error {
 				update.Duration = &d
 			}
 
-			if err := worklog.UpdateEvent(*timeEditUUID, update); err != nil {
+			event, err := resolveEventUUID(worklog, *timeEditUUID)
+			if err != nil {
+				return err
+			}
+			if err := worklog.UpdateEvent(event.uuid, update); err != nil {
 				return err
 			}
 			if err := worklog.Save(*timeEditOutput); err != nil {
@@ -363,9 +380,9 @@ func run(args []string) error {
 			timeDeleteCommand := flag.NewFlagSet("time delete", flag.ContinueOnError)
 			timeDeleteFile := timeDeleteCommand.String("file", "", "Path to .ics file (overrides WORKLOG_FILE)")
 			timeDeleteOutput := timeDeleteCommand.String("output", "", "Output path for the updated .ics file (defaults to input file)")
-			timeDeleteUUID := timeDeleteCommand.String("uuid", "", "UUID of the time entry to delete (required)")
+			timeDeleteUUID := timeDeleteCommand.String("uuid", "", "UUID (or short unique prefix) of the time entry to delete (required)")
 			timeDeleteForce := timeDeleteCommand.Bool("force", false, "Delete without confirmation")
-			configureFlagSet(timeDeleteCommand, "Delete a time entry.", "  worklog time delete -uuid <event-uuid>\n  worklog time delete -uuid <event-uuid> -force")
+			configureFlagSet(timeDeleteCommand, "Delete a time entry.", "  worklog time delete -uuid <short-uuid>\n  worklog time delete -uuid <short-uuid> -force")
 			if err := timeDeleteCommand.Parse(timeArgs); err != nil {
 				return err
 			}
@@ -379,9 +396,9 @@ func run(args []string) error {
 				return fmt.Errorf("-uuid flag is required for time delete")
 			}
 
-			event := worklog.FindEventByUUID(*timeDeleteUUID)
-			if event == nil {
-				return fmt.Errorf("time entry with UUID '%s' not found", *timeDeleteUUID)
+			event, err := resolveEventUUID(worklog, *timeDeleteUUID)
+			if err != nil {
+				return err
 			}
 
 			if !*timeDeleteForce {
@@ -400,7 +417,7 @@ func run(args []string) error {
 				}
 			}
 
-			if err := worklog.DeleteEvent(*timeDeleteUUID); err != nil {
+			if err := worklog.DeleteEvent(event.uuid); err != nil {
 				return err
 			}
 			if err := worklog.Save(*timeDeleteOutput); err != nil {
@@ -539,8 +556,8 @@ func runTaskList(args []string) error {
 	listCommand := flag.NewFlagSet("task list", flag.ContinueOnError)
 	listFile := listCommand.String("file", "", "Path to .ics file (overrides WORKLOG_FILE)")
 	listSearch := listCommand.String("search", "", "Filter tasks by case-insensitive search in name or description")
-	listParent := listCommand.String("parent", "", "Show only the specified task and its descendants")
-	configureFlagSet(listCommand, "List all tasks, showing the hierarchy, UUID, direct duration, and total duration.", "  worklog task list\n  worklog task list -file ~/tasks.ics\n  worklog task list -search planning\n  worklog task list -parent <uuid>")
+	listParent := listCommand.String("parent", "", "Show only the specified task and its descendants (UUID or short unique prefix)")
+	configureFlagSet(listCommand, "List all tasks, showing the hierarchy, UUID, direct duration, and total duration.", "  worklog task list\n  worklog task list -file ~/tasks.ics\n  worklog task list -search planning\n  worklog task list -parent <short-uuid>")
 	if err := listCommand.Parse(args); err != nil {
 		return err
 	}
@@ -552,14 +569,23 @@ func runTaskList(args []string) error {
 
 	tasks := worklog.tasks
 	if *listParent != "" {
-		parentTask := worklog.FindTaskByUUID(*listParent)
-		if parentTask == nil {
-			return fmt.Errorf("parent task with UUID '%s' not found", *listParent)
+		parentTask, err := resolveTaskUUID(worklog, *listParent)
+		if err != nil {
+			return err
 		}
 		tasks = []*Task{parentTask}
 	}
 
 	direct, totals := worklog.ComputeTaskTotals()
+
+	allTaskUUIDs := worklog.allTaskUUIDs()
+	shortTaskUUIDs := shortUUIDs(allTaskUUIDs)
+	maxShortLen := 4
+	for _, su := range shortTaskUUIDs {
+		if len(su) > maxShortLen {
+			maxShortLen = len(su)
+		}
+	}
 
 	if *listSearch != "" {
 		// Flat list of matching tasks
@@ -580,11 +606,11 @@ func runTaskList(args []string) error {
 				nameWidth = len(task.name)
 			}
 		}
-		fmt.Printf("%-*s %-*s %*s %*s\n", 36, "UUID", nameWidth, "Name", 10, "Duration", 10, "Total")
+		fmt.Printf("%-*s %-*s %*s %*s\n", maxShortLen, "UUID", nameWidth, "Name", 10, "Duration", 10, "Total")
 		for _, task := range matching {
 			directDur := formatDuration(direct[task.uuid])
 			totalDur := formatDuration(totals[task.uuid])
-			fmt.Printf("%-*s %-*s %*s %*s\n", 36, task.uuid, nameWidth, task.name, 10, directDur, 10, totalDur)
+			fmt.Printf("%-*s %-*s %*s %*s\n", maxShortLen, shortTaskUUIDs[task.uuid], nameWidth, task.name, 10, directDur, 10, totalDur)
 		}
 		return nil
 	}
@@ -593,10 +619,9 @@ func runTaskList(args []string) error {
 	if nameWidth < 4 {
 		nameWidth = 4
 	}
-	uuidWidth := 36
 	durWidth := 10
-	fmt.Printf("%-*s %-*s %*s %*s\n", uuidWidth, "UUID", nameWidth, "Name", durWidth, "Duration", durWidth, "Total")
-	printTasks(tasks, "", direct, totals, nameWidth)
+	fmt.Printf("%-*s %-*s %*s %*s\n", maxShortLen, "UUID", nameWidth, "Name", durWidth, "Duration", durWidth, "Total")
+	printTasks(tasks, "", direct, totals, nameWidth, shortTaskUUIDs)
 	return nil
 }
 
@@ -606,9 +631,9 @@ func runTaskCreate(args []string) error {
 	createOutput := createCommand.String("output", "", "Output path for the updated .ics file (defaults to input file)")
 	createName := createCommand.String("name", "", "The name of the task")
 	createDescription := createCommand.String("description", "", "Additional or more detailed description")
-	createParent := createCommand.String("parent", "", "Unique ID of parent task")
+	createParent := createCommand.String("parent", "", "Unique ID (or short unique prefix) of parent task")
 	createIssueKey := createCommand.String("issue-key", "", "Explicit Jira issue key for this task")
-	configureFlagSet(createCommand, "Create a new task with an auto-generated UUID.", "  worklog task create -name \"Project Setup\"\n  worklog task create -name \"Subtask\" -parent <uuid>\n  worklog task create -file ~/tasks.ics -output ~/backup.ics -name \"Backup\"")
+	configureFlagSet(createCommand, "Create a new task with an auto-generated UUID.", "  worklog task create -name \"Project Setup\"\n  worklog task create -name \"Subtask\" -parent <short-uuid>\n  worklog task create -file ~/tasks.ics -output ~/backup.ics -name \"Backup\"")
 	if err := createCommand.Parse(args); err != nil {
 		return err
 	}
@@ -626,9 +651,9 @@ func runTaskCreate(args []string) error {
 		})
 	}
 	if *createParent != "" {
-		parentTask := worklog.FindTaskByUUID(*createParent)
-		if parentTask == nil {
-			return fmt.Errorf("parent task with UUID '%s' not found", *createParent)
+		parentTask, err := resolveTaskUUID(worklog, *createParent)
+		if err != nil {
+			return err
 		}
 		worklog.removeFromParent(task)
 		task.parent = parentTask
@@ -644,13 +669,13 @@ func runTaskUpdate(args []string) error {
 	updateCommand := flag.NewFlagSet("task update", flag.ContinueOnError)
 	updateFile := updateCommand.String("file", "", "Path to .ics file (overrides WORKLOG_FILE)")
 	updateOutput := updateCommand.String("output", "", "Output path for the updated .ics file (defaults to input file)")
-	updateUUID := updateCommand.String("uuid", "", "The UUID of the task to update (required)")
+	updateUUID := updateCommand.String("uuid", "", "The UUID (or short unique prefix) of the task to update (required)")
 	updateName := updateCommand.String("name", "", "New name for the task")
 	updateDescription := updateCommand.String("description", "", "New description for the task")
-	updateParent := updateCommand.String("parent", "", "New parent UUID for the task")
+	updateParent := updateCommand.String("parent", "", "New parent UUID (or short unique prefix) for the task")
 	updateIssueKey := updateCommand.String("issue-key", "", "Explicit Jira issue key for this task")
 	updateAttrs := updateCommand.String("attr", "", "Tempo work attributes as comma-separated key=value pairs (e.g. _WorkType_=Development)")
-	configureFlagSet(updateCommand, "Update an existing task. Only provided fields are changed.", "  worklog task update -uuid <uuid> -name \"New Name\"\n  worklog task update -uuid <uuid> -parent \"\"\n  worklog task update -uuid <uuid> -description \"Details\"\n  worklog task update -uuid <uuid> -attr _WorkType_=Development")
+	configureFlagSet(updateCommand, "Update an existing task. Only provided fields are changed.", "  worklog task update -uuid <short-uuid> -name \"New Name\"\n  worklog task update -uuid <short-uuid> -parent \"\"\n  worklog task update -uuid <short-uuid> -description \"Details\"\n  worklog task update -uuid <short-uuid> -attr _WorkType_=Development")
 	if err := updateCommand.Parse(args); err != nil {
 		return err
 	}
@@ -663,6 +688,12 @@ func runTaskUpdate(args []string) error {
 	if *updateUUID == "" {
 		return fmt.Errorf("-uuid flag is required for update command")
 	}
+
+	resolvedTask, err := resolveTaskUUID(worklog, *updateUUID)
+	if err != nil {
+		return err
+	}
+	resolvedUUID := resolvedTask.uuid
 
 	issueKeySet := false
 	attrSet := false
@@ -682,12 +713,22 @@ func runTaskUpdate(args []string) error {
 		}
 	})
 
-	if err := worklog.UpdateTask(*updateUUID, update); err != nil {
+	// Resolve parent UUID if provided and non-empty
+	if update.ParentUUID != nil && *update.ParentUUID != "" {
+		parentTask, err := resolveTaskUUID(worklog, *update.ParentUUID)
+		if err != nil {
+			return err
+		}
+		resolvedParentUUID := parentTask.uuid
+		update.ParentUUID = &resolvedParentUUID
+	}
+
+	if err := worklog.UpdateTask(resolvedUUID, update); err != nil {
 		return err
 	}
 
 	if issueKeySet {
-		task := worklog.FindTaskByUUID(*updateUUID)
+		task := worklog.FindTaskByUUID(resolvedUUID)
 		var newProps []ics.IANAProperty
 		for _, prop := range task.properties {
 			if prop.IANAToken != "X-WORKLOG-ISSUE-KEY" && prop.IANAToken != "X-WORKLOG-ISSUE-ID" {
@@ -703,9 +744,9 @@ func runTaskUpdate(args []string) error {
 	}
 
 	if attrSet {
-		task := worklog.FindTaskByUUID(*updateUUID)
+		task := worklog.FindTaskByUUID(resolvedUUID)
 		if task == nil {
-			return fmt.Errorf("task with UUID '%s' not found", *updateUUID)
+			return fmt.Errorf("task with UUID '%s' not found", shortUUID(resolvedUUID, worklog.allTaskUUIDs()))
 		}
 		if *updateAttrs == "" {
 			// Clear all tempo attributes
@@ -737,9 +778,9 @@ func runTaskDelete(args []string) error {
 	deleteCommand := flag.NewFlagSet("task delete", flag.ContinueOnError)
 	deleteFile := deleteCommand.String("file", "", "Path to .ics file (overrides WORKLOG_FILE)")
 	deleteOutput := deleteCommand.String("output", "", "Output path for the updated .ics file (defaults to input file)")
-	deleteUUID := deleteCommand.String("uuid", "", "The UUID of the task to delete (required)")
+	deleteUUID := deleteCommand.String("uuid", "", "The UUID (or short unique prefix) of the task to delete (required)")
 	deleteForce := deleteCommand.Bool("force", false, "Delete without confirmation")
-	configureFlagSet(deleteCommand, "Delete a task and all of its subtasks recursively.", "  worklog task delete -uuid <uuid>\n  worklog task delete -uuid <uuid> -force")
+	configureFlagSet(deleteCommand, "Delete a task and all of its subtasks recursively.", "  worklog task delete -uuid <short-uuid>\n  worklog task delete -uuid <short-uuid> -force")
 	if err := deleteCommand.Parse(args); err != nil {
 		return err
 	}
@@ -753,9 +794,9 @@ func runTaskDelete(args []string) error {
 		return fmt.Errorf("-uuid flag is required for delete command")
 	}
 
-	task := worklog.FindTaskByUUID(*deleteUUID)
-	if task == nil {
-		return fmt.Errorf("task with UUID '%s' not found", *deleteUUID)
+	task, err := resolveTaskUUID(worklog, *deleteUUID)
+	if err != nil {
+		return err
 	}
 
 	count := countSubtasks(task)
@@ -772,7 +813,7 @@ func runTaskDelete(args []string) error {
 		}
 	}
 
-	deleted, err := worklog.DeleteTask(*deleteUUID)
+	deleted, err := worklog.DeleteTask(task.uuid)
 	if err != nil {
 		return err
 	}
@@ -825,10 +866,16 @@ func maxTaskLineWidth(tasks []*Task, prefix string) int {
 	return width
 }
 
-func printTasks(tasks []*Task, prefix string, direct map[string]int, totals map[string]int, nameWidth int) {
+func printTasks(tasks []*Task, prefix string, direct map[string]int, totals map[string]int, nameWidth int, shortUUIDs map[string]string) {
 	sort.Slice(tasks, func(i, j int) bool {
 		return tasks[i].name < tasks[j].name
 	})
+	maxShortLen := 4
+	for _, su := range shortUUIDs {
+		if len(su) > maxShortLen {
+			maxShortLen = len(su)
+		}
+	}
 	for _, task := range tasks {
 		separator := "- "
 		if prefix != "" {
@@ -837,9 +884,9 @@ func printTasks(tasks []*Task, prefix string, direct map[string]int, totals map[
 		name := prefix + separator + task.name
 		directDur := formatDuration(direct[task.uuid])
 		totalDur := formatDuration(totals[task.uuid])
-		fmt.Printf("%-*s %-*s %*s %*s\n", 36, task.uuid, nameWidth, name, 10, directDur, 10, totalDur)
+		fmt.Printf("%-*s %-*s %*s %*s\n", maxShortLen, shortUUIDs[task.uuid], nameWidth, name, 10, directDur, 10, totalDur)
 		if len(task.children) > 0 {
-			printTasks(task.children, "  "+prefix, direct, totals, nameWidth)
+			printTasks(task.children, "  "+prefix, direct, totals, nameWidth, shortUUIDs)
 		}
 	}
 }

@@ -65,8 +65,8 @@ func runJiraResolve(args []string) error {
 	resolveCommand := flag.NewFlagSet("jira resolve", flag.ContinueOnError)
 	resolveFile := resolveCommand.String("file", "", "Path to .ics file (overrides WORKLOG_FILE)")
 	resolveOutput := resolveCommand.String("output", "", "Output path for the updated .ics file (defaults to input file)")
-	resolveTask := resolveCommand.String("task", "", "UUID of a specific task to resolve (optional)")
-	configureFlagSet(resolveCommand, "Resolve Jira issue keys to numeric IDs and cache them on tasks.", "  worklog jira resolve\n  worklog jira resolve --task <uuid>")
+	resolveTask := resolveCommand.String("task", "", "UUID (or short unique prefix) of a specific task to resolve (optional)")
+	configureFlagSet(resolveCommand, "Resolve Jira issue keys to numeric IDs and cache them on tasks.", "  worklog jira resolve\n  worklog jira resolve --task <short-uuid>")
 	if err := resolveCommand.Parse(args); err != nil {
 		return err
 	}
@@ -95,9 +95,9 @@ func runJiraResolve(args []string) error {
 
 	var tasks []*Task
 	if *resolveTask != "" {
-		task := worklog.FindTaskByUUID(*resolveTask)
-		if task == nil {
-			return fmt.Errorf("task with UUID '%s' not found", *resolveTask)
+		task, err := resolveTaskUUID(worklog, *resolveTask)
+		if err != nil {
+			return err
 		}
 		tasks = []*Task{task}
 	} else {
@@ -136,7 +136,7 @@ func runJiraSync(args []string) error {
 	syncCommand := flag.NewFlagSet("jira sync", flag.ContinueOnError)
 	syncFile := syncCommand.String("file", "", "Path to .ics file (overrides WORKLOG_FILE)")
 	syncOutput := syncCommand.String("output", "", "Output path for the updated .ics file (defaults to input file)")
-	syncTask := syncCommand.String("task", "", "UUID of a specific task to sync (optional)")
+	syncTask := syncCommand.String("task", "", "UUID (or short unique prefix) of a specific task to sync (optional)")
 	syncFrom := syncCommand.String("from", "", "Start date for sync range (YYYY-MM-DD)")
 	syncTo := syncCommand.String("to", "", "End date for sync range (YYYY-MM-DD)")
 	syncDryRun := syncCommand.Bool("dry-run", false, "Preview what would be synced without sending")
@@ -145,7 +145,7 @@ func runJiraSync(args []string) error {
 	syncHideEmpty := syncCommand.Bool("hide-empty", false, "Hide days with no time entries (timesheet format only)")
 	syncDecimal := syncCommand.Bool("decimal", false, "Display hours in decimal format (timesheet format only)")
 	syncRounding := syncCommand.String("rounding", "", "Rounding steps: floor/ceil/round:to[,...] (default from config, or round:1m)")
-	configureFlagSet(syncCommand, "Sync time entries to Tempo Cloud. Entries are merged by task and date before sending.", "  worklog jira sync --dry-run\n  worklog jira sync --task <uuid>\n  worklog jira sync --from 2026-05-01 --to 2026-05-07\n  worklog jira sync --dry-run --format timesheet --hide-empty")
+	configureFlagSet(syncCommand, "Sync time entries to Tempo Cloud. Entries are merged by task and date before sending.", "  worklog jira sync --dry-run\n  worklog jira sync --task <short-uuid>\n  worklog jira sync --from 2026-05-01 --to 2026-05-07\n  worklog jira sync --dry-run --format timesheet --hide-empty")
 	if err := syncCommand.Parse(args); err != nil {
 		return err
 	}
@@ -212,7 +212,16 @@ func runJiraSync(args []string) error {
 		roundingSteps = []RoundingStep{{Step: "round", To: "1m"}}
 	}
 
-	entries, err := buildSyncEntries(worklog, *syncTask, fromDay, toDay, roundingSteps)
+	syncTaskUUID := ""
+	if *syncTask != "" {
+		task, err := resolveTaskUUID(worklog, *syncTask)
+		if err != nil {
+			return err
+		}
+		syncTaskUUID = task.uuid
+	}
+
+	entries, err := buildSyncEntries(worklog, syncTaskUUID, fromDay, toDay, roundingSteps)
 	if err != nil {
 		return err
 	}

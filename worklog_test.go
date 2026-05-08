@@ -260,7 +260,7 @@ func TestUpdateTaskNonExistentTask(t *testing.T) {
 		t.Errorf("Expected error when updating non-existent task")
 	}
 
-	expectedMsg := "task with UUID 'non-existent-uuid' not found"
+	expectedMsg := "task with UUID 'non-' not found"
 	if err != nil && err.Error() != expectedMsg {
 		t.Errorf("Expected error message '%s', got: %v", expectedMsg, err)
 	}
@@ -278,7 +278,7 @@ func TestUpdateTaskNonExistentParent(t *testing.T) {
 		t.Errorf("Expected error when setting non-existent parent")
 	}
 
-	expectedMsg := "parent task with UUID 'non-existent-parent' not found"
+	expectedMsg := "parent task with UUID 'non-' not found"
 	if err != nil && err.Error() != expectedMsg {
 		t.Errorf("Expected error message '%s', got: %v", expectedMsg, err)
 	}

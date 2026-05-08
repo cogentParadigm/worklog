@@ -404,7 +404,7 @@ func TestRunTaskListParentInvalidUUID(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for invalid parent UUID")
 	}
-	if !strings.Contains(err.Error(), "parent task with UUID 'invalid-uuid' not found") {
+	if !strings.Contains(err.Error(), "task with UUID 'invalid-uuid' not found") {
 		t.Errorf("unexpected error message: %v", err)
 	}
 }

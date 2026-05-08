@@ -42,6 +42,23 @@ func (worklog *Worklog) NewTask(name string) *Task {
 	return task
 }
 
+func (worklog *Worklog) allTaskUUIDs() []string {
+	allTasks := flattenTasks(worklog.tasks)
+	uuids := make([]string, len(allTasks))
+	for i, task := range allTasks {
+		uuids[i] = task.uuid
+	}
+	return uuids
+}
+
+func (worklog *Worklog) allEventUUIDs() []string {
+	uuids := make([]string, len(worklog.events))
+	for i, event := range worklog.events {
+		uuids[i] = event.uuid
+	}
+	return uuids
+}
+
 func (worklog *Worklog) FindTaskByUUID(uuid string) *Task {
 	return findTaskByUUID(worklog.tasks, uuid)
 }
@@ -108,7 +125,7 @@ type TaskUpdate struct {
 func (worklog *Worklog) UpdateTask(uuid string, update TaskUpdate) error {
 	task := worklog.FindTaskByUUID(uuid)
 	if task == nil {
-		return fmt.Errorf("task with UUID '%s' not found", uuid)
+		return fmt.Errorf("task with UUID '%s' not found", shortUUID(uuid, worklog.allTaskUUIDs()))
 	}
 
 	if update.Name != nil {
@@ -140,7 +157,7 @@ func (worklog *Worklog) UpdateTask(uuid string, update TaskUpdate) error {
 		// Find the new parent task
 		newParent := worklog.FindTaskByUUID(*update.ParentUUID)
 		if newParent == nil {
-			return fmt.Errorf("parent task with UUID '%s' not found", *update.ParentUUID)
+			return fmt.Errorf("parent task with UUID '%s' not found", shortUUID(*update.ParentUUID, worklog.allTaskUUIDs()))
 		}
 
 		// Check for deeper cycle: newParent must not be a descendant of task
@@ -162,7 +179,7 @@ func (worklog *Worklog) UpdateTask(uuid string, update TaskUpdate) error {
 func (worklog *Worklog) DeleteTask(uuid string) (int, error) {
 	task := worklog.FindTaskByUUID(uuid)
 	if task == nil {
-		return 0, fmt.Errorf("task with UUID '%s' not found", uuid)
+		return 0, fmt.Errorf("task with UUID '%s' not found", shortUUID(uuid, worklog.allTaskUUIDs()))
 	}
 
 	count := countSubtasks(task)
@@ -232,7 +249,7 @@ func (worklog *Worklog) DeleteEvent(uuid string) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("event with UUID '%s' not found", uuid)
+	return fmt.Errorf("time entry with UUID '%s' not found", shortUUID(uuid, worklog.allEventUUIDs()))
 }
 
 type EventUpdate struct {
@@ -245,7 +262,7 @@ type EventUpdate struct {
 func (worklog *Worklog) UpdateEvent(uuid string, update EventUpdate) error {
 	event := worklog.FindEventByUUID(uuid)
 	if event == nil {
-		return fmt.Errorf("event with UUID '%s' not found", uuid)
+		return fmt.Errorf("time entry with UUID '%s' not found", shortUUID(uuid, worklog.allEventUUIDs()))
 	}
 
 	if update.Comment != nil {
