@@ -1,3 +1,10 @@
+# [0.19.0](https://github.com/cogentParadigm/worklog/compare/v0.18.1...v0.19.0) (2026-05-08)
+
+
+### Features
+
+* add sidecar metadata file for KTimeTracker co-existence ([85de7df](https://github.com/cogentParadigm/worklog/commit/85de7dfb5461c267da2fb9be91b49e3db80095b4))
+
 ## [0.18.1](https://github.com/cogentParadigm/worklog/compare/v0.18.0...v0.18.1) (2026-05-08)
 
 
