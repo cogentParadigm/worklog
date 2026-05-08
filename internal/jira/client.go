@@ -28,6 +28,16 @@ type issueResponse struct {
 	ID string `json:"id"`
 }
 
+type timeTracking struct {
+	RemainingEstimateSeconds int `json:"remainingEstimateSeconds"`
+}
+
+type issueTimeTrackingResponse struct {
+	Fields struct {
+		TimeTracking *timeTracking `json:"timetracking"`
+	} `json:"fields"`
+}
+
 func (c *Client) authHeader() string {
 	return "Basic " + base64.StdEncoding.EncodeToString([]byte(c.username+":"+c.token))
 }
@@ -63,4 +73,40 @@ func (c *Client) GetIssueID(issueKey string) (string, error) {
 		return "", fmt.Errorf("decode jira response: %w", err)
 	}
 	return body.ID, nil
+}
+
+func (c *Client) GetRemainingEstimate(issueKey string) (int, error) {
+	if c.baseURL == "" {
+		return 0, fmt.Errorf("jira base URL not configured")
+	}
+	url := fmt.Sprintf("%s/rest/api/3/issue/%s?fields=timetracking", c.baseURL, issueKey)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return 0, err
+	}
+	req.Header.Set("Authorization", c.authHeader())
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		var errBody map[string]interface{}
+		if err := json.NewDecoder(resp.Body).Decode(&errBody); err == nil {
+			return 0, fmt.Errorf("jira API %s: %v", resp.Status, errBody)
+		}
+		return 0, fmt.Errorf("jira API %s", resp.Status)
+	}
+
+	var body issueTimeTrackingResponse
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		return 0, fmt.Errorf("decode jira response: %w", err)
+	}
+	if body.Fields.TimeTracking == nil {
+		return 0, nil
+	}
+	return body.Fields.TimeTracking.RemainingEstimateSeconds, nil
 }

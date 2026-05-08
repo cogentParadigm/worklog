@@ -116,3 +116,59 @@ func TestCreateWorklogPlainTextError(t *testing.T) {
 		t.Fatal("expected error for 403 response")
 	}
 }
+
+func TestCreateWorklogWithRemainingEstimate(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]interface{}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode body: %v", err)
+		}
+		if body["remainingEstimateSeconds"] != float64(7200) {
+			t.Errorf("remainingEstimateSeconds: got %v, want 7200", body["remainingEstimateSeconds"])
+		}
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]interface{}{"id": 42})
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "token", "account")
+	rem := 7200
+	wl := Worklog{
+		IssueId:                  "PROJ-123",
+		TimeSpentSeconds:         3600,
+		StartDate:                "2026-05-06",
+		StartTime:                "09:00:00",
+		Description:              "Test worklog",
+		RemainingEstimateSeconds: &rem,
+	}
+	if err := client.CreateWorklog(wl); err != nil {
+		t.Fatalf("CreateWorklog: %v", err)
+	}
+}
+
+func TestCreateWorklogWithoutRemainingEstimate(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]interface{}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode body: %v", err)
+		}
+		if _, ok := body["remainingEstimateSeconds"]; ok {
+			t.Errorf("remainingEstimateSeconds should not be present, got %v", body["remainingEstimateSeconds"])
+		}
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]interface{}{"id": 42})
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "token", "account")
+	wl := Worklog{
+		IssueId:          "PROJ-123",
+		TimeSpentSeconds: 3600,
+		StartDate:        "2026-05-06",
+		StartTime:        "09:00:00",
+		Description:      "Test worklog",
+	}
+	if err := client.CreateWorklog(wl); err != nil {
+		t.Fatalf("CreateWorklog: %v", err)
+	}
+}

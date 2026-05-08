@@ -100,6 +100,113 @@ func TestGetIssueIDMissingBaseURL(t *testing.T) {
 	}
 }
 
+func TestGetRemainingEstimateSuccess(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" {
+			t.Errorf("expected GET, got %s", r.Method)
+		}
+		if r.URL.Path != "/rest/api/3/issue/PROJ-123" {
+			t.Errorf("expected path /rest/api/3/issue/PROJ-123, got %s", r.URL.Path)
+		}
+		q := r.URL.Query()
+		if q.Get("fields") != "timetracking" {
+			t.Errorf("expected fields=timetracking, got %s", q.Get("fields"))
+		}
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"fields": map[string]interface{}{
+				"timetracking": map[string]interface{}{
+					"remainingEstimateSeconds": 3600,
+				},
+			},
+		})
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "user", "test-token")
+	seconds, err := client.GetRemainingEstimate("PROJ-123")
+	if err != nil {
+		t.Fatalf("GetRemainingEstimate: %v", err)
+	}
+	if seconds != 3600 {
+		t.Errorf("seconds: got %d, want 3600", seconds)
+	}
+}
+
+func TestGetRemainingEstimateNullTimeTracking(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"fields": map[string]interface{}{
+				"timetracking": nil,
+			},
+		})
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "user", "test-token")
+	seconds, err := client.GetRemainingEstimate("PROJ-123")
+	if err != nil {
+		t.Fatalf("GetRemainingEstimate: %v", err)
+	}
+	if seconds != 0 {
+		t.Errorf("seconds: got %d, want 0", seconds)
+	}
+}
+
+func TestGetRemainingEstimateMissingTimeTracking(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"fields": map[string]interface{}{},
+		})
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "user", "test-token")
+	seconds, err := client.GetRemainingEstimate("PROJ-123")
+	if err != nil {
+		t.Fatalf("GetRemainingEstimate: %v", err)
+	}
+	if seconds != 0 {
+		t.Errorf("seconds: got %d, want 0", seconds)
+	}
+}
+
+func TestGetRemainingEstimateError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(map[string]interface{}{"errorMessages": []string{"Issue does not exist."}})
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "user", "bad-token")
+	_, err := client.GetRemainingEstimate("MISSING-1")
+	if err == nil {
+		t.Fatal("expected error for 404 response")
+	}
+	expected := "Issue does not exist"
+	if !contains(err.Error(), expected) {
+		t.Errorf("error message should contain %q, got %q", expected, err.Error())
+	}
+}
+
+func TestGetRemainingEstimateNetworkError(t *testing.T) {
+	client := NewClient("http://localhost:1", "user", "token")
+	_, err := client.GetRemainingEstimate("PROJ-1")
+	if err == nil {
+		t.Fatal("expected network error")
+	}
+}
+
+func TestGetRemainingEstimateMissingBaseURL(t *testing.T) {
+	client := NewClient("", "user", "token")
+	_, err := client.GetRemainingEstimate("PROJ-1")
+	if err == nil {
+		t.Fatal("expected error for missing base URL")
+	}
+}
+
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsHelper(s, substr))
 }

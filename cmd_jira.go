@@ -257,6 +257,23 @@ func runJiraSync(args []string) error {
 		}
 	}
 
+	// Pre-fetch remaining estimates from Jira so Tempo doesn't require us to
+	// auto-reduce them. We only fetch for unique issue keys to limit API calls.
+	remainingEstimates := make(map[string]int)
+	if jiraClient != nil {
+		uniqueKeys := make(map[string]bool)
+		for _, e := range entries {
+			uniqueKeys[e.issueKey] = true
+		}
+		for key := range uniqueKeys {
+			seconds, err := jiraClient.GetRemainingEstimate(key)
+			if err != nil {
+				return fmt.Errorf("fetch remaining estimate for %s: %w", key, err)
+			}
+			remainingEstimates[key] = seconds
+		}
+	}
+
 	for _, e := range entries {
 		issueID := e.task.IssueID()
 		if issueID == "" {
@@ -276,6 +293,9 @@ func runJiraSync(args []string) error {
 			StartDate:        e.start.Format("2006-01-02"),
 			StartTime:        e.start.Format("15:04:05"),
 			Description:      e.comment,
+		}
+		if est, ok := remainingEstimates[e.issueKey]; ok {
+			wl.RemainingEstimateSeconds = &est
 		}
 		if err := client.CreateWorklog(wl); err != nil {
 			return fmt.Errorf("send worklog for '%s' (%s): %w", e.task.name, e.issueKey, err)

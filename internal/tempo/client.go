@@ -28,11 +28,12 @@ func NewClient(baseURL, token, accountID string) *Client {
 }
 
 type Worklog struct {
-	IssueId          string
-	TimeSpentSeconds int
-	StartDate        string
-	StartTime        string
-	Description      string
+	IssueId                    string
+	TimeSpentSeconds           int
+	StartDate                  string
+	StartTime                  string
+	Description                string
+	RemainingEstimateSeconds   *int
 }
 
 func (c *Client) CreateWorklog(wl Worklog) error {
@@ -44,6 +45,9 @@ func (c *Client) CreateWorklog(wl Worklog) error {
 		"startTime":        wl.StartTime,
 		"description":      wl.Description,
 		"authorAccountId":  c.accountID,
+	}
+	if wl.RemainingEstimateSeconds != nil {
+		payload["remainingEstimateSeconds"] = *wl.RemainingEstimateSeconds
 	}
 	body, err := json.Marshal(payload)
 	if err != nil {
