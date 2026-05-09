@@ -1,3 +1,10 @@
+# [0.22.0](https://github.com/cogentParadigm/worklog/compare/v0.21.0...v0.22.0) (2026-05-09)
+
+
+### Features
+
+* **jira:** show tempo attributes in sync preview ([14d65fc](https://github.com/cogentParadigm/worklog/commit/14d65fc589de7c37fe88f24f79db987d93dfb470))
+
 # [0.21.0](https://github.com/cogentParadigm/worklog/compare/v0.20.0...v0.21.0) (2026-05-09)
 
 
