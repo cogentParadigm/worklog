@@ -1,3 +1,10 @@
+# [0.23.0](https://github.com/cogentParadigm/worklog/compare/v0.22.0...v0.23.0) (2026-05-09)
+
+
+### Features
+
+* improve jira sync preview and time list UX ([0ec6586](https://github.com/cogentParadigm/worklog/commit/0ec658610ce21336f860a49a48652a0daa806b5b))
+
 # [0.22.0](https://github.com/cogentParadigm/worklog/compare/v0.21.0...v0.22.0) (2026-05-09)
 
 
