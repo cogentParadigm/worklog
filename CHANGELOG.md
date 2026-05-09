@@ -1,3 +1,10 @@
+# [0.21.0](https://github.com/cogentParadigm/worklog/compare/v0.20.0...v0.21.0) (2026-05-09)
+
+
+### Features
+
+* display short task UUIDs in report timesheet and jira sync previews ([ad738b5](https://github.com/cogentParadigm/worklog/commit/ad738b5b66bb8b18e204e320a7017e6a899efbd8))
+
 # [0.20.0](https://github.com/cogentParadigm/worklog/compare/v0.19.0...v0.20.0) (2026-05-08)
 
 
