@@ -295,7 +295,15 @@ func run(args []string) error {
 				}
 			}
 
-			fmt.Printf("%-*s %-30s %-20s %-20s %-10s\n", maxShortLen, "UUID", "Task", "Start", "End", "Duration")
+			maxCommentLen := 7 // "Comment"
+			for _, event := range events {
+				truncated := truncate(event.comment, 30)
+				if len(truncated) > maxCommentLen {
+					maxCommentLen = len(truncated)
+				}
+			}
+
+			fmt.Printf("%-*s %-30s %-20s %-20s %-10s %-*s\n", maxShortLen, "UUID", "Task", "Start", "End", "Duration", maxCommentLen, "Comment")
 			for _, event := range events {
 				taskName := "(orphaned task)"
 				if task := worklog.FindTaskByUUID(event.relatedTo); task != nil {
@@ -310,7 +318,8 @@ func run(args []string) error {
 					endStr = event.dtend.Format("2006-01-02 15:04:05")
 				}
 				durStr := time.Duration(event.duration * int(time.Second)).String()
-				fmt.Printf("%-*s %-30s %-20s %-20s %-10s\n", maxShortLen, shortEventUUIDs[event.uuid], taskName, startStr, endStr, durStr)
+				comment := truncate(event.comment, 30)
+				fmt.Printf("%-*s %-30s %-20s %-20s %-10s %-*s\n", maxShortLen, shortEventUUIDs[event.uuid], taskName, startStr, endStr, durStr, maxCommentLen, comment)
 			}
 		case "edit":
 			timeEditCommand := flag.NewFlagSet("time edit", flag.ContinueOnError)

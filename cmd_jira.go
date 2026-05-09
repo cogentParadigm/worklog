@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"sort"
 	"strings"
@@ -226,8 +227,17 @@ func runJiraSync(args []string) error {
 		return err
 	}
 
+	skipped := findSkippedTasks(worklog, syncTaskUUID, fromDay, toDay)
+	allTaskUUIDs := worklog.allTaskUUIDs()
+	shortTaskUUIDs := shortUUIDs(allTaskUUIDs)
+
 	if len(entries) == 0 {
 		fmt.Println("No entries to sync.")
+		if len(skipped) > 0 {
+			fmt.Println("")
+			fmt.Println("Skipped tasks (no issue key):")
+			printSkippedTasks(os.Stdout, skipped, shortTaskUUIDs)
+		}
 		return nil
 	}
 
@@ -249,7 +259,7 @@ func runJiraSync(args []string) error {
 
 	if *syncFormat == "timesheet" {
 		ts := buildTimesheetFromSyncEntries(entries, fromDay, toDay)
-		ts.shortUUIDs = shortUUIDs(worklog.allTaskUUIDs())
+		ts.shortUUIDs = shortTaskUUIDs
 		ts.defaultAttrs = cfg.Tempo.Attributes
 		for i := range ts.rows {
 			ts.rows[i].attributes = mergedTempoAttributes(cfg, ts.rows[i].task)
@@ -259,8 +269,6 @@ func runJiraSync(args []string) error {
 		}
 		printTimesheetTable(os.Stdout, ts, *syncDecimal)
 	} else {
-		allTaskUUIDs := worklog.allTaskUUIDs()
-		shortTaskUUIDs := shortUUIDs(allTaskUUIDs)
 		maxShortLen := 4
 		for _, su := range shortTaskUUIDs {
 			if len(su) > maxShortLen {
@@ -361,6 +369,12 @@ func runJiraSync(args []string) error {
 		fmt.Printf("Default Tempo attributes: %s\n", strings.Join(parts, ", "))
 	}
 	fmt.Printf("Total: %d worklog(s) to send.\n", len(entries))
+
+	if len(skipped) > 0 {
+		fmt.Println("")
+		fmt.Println("Skipped tasks (no issue key):")
+		printSkippedTasks(os.Stdout, skipped, shortTaskUUIDs)
+	}
 
 	if *syncDryRun {
 		fmt.Println("Dry run complete. No entries were sent.")
@@ -492,6 +506,68 @@ func runJiraAttributes(args []string) error {
 		fmt.Println()
 	}
 	return nil
+}
+
+type skippedTask struct {
+	task     *Task
+	duration int
+}
+
+func findSkippedTasks(worklog *Worklog, taskUUID string, fromDay, toDay time.Time) []skippedTask {
+	durations := make(map[string]int)
+	taskMap := make(map[string]*Task)
+
+	for _, event := range worklog.GetEvents() {
+		if event.dtstart.IsZero() {
+			continue
+		}
+		day := time.Date(event.dtstart.Year(), event.dtstart.Month(), event.dtstart.Day(), 0, 0, 0, 0, event.dtstart.Location())
+		if !fromDay.IsZero() && day.Before(fromDay) {
+			continue
+		}
+		if !toDay.IsZero() && day.After(toDay) {
+			continue
+		}
+		task := worklog.FindTaskByUUID(event.relatedTo)
+		if task == nil {
+			continue
+		}
+		if taskUUID != "" && task.uuid != taskUUID {
+			continue
+		}
+		if task.IssueKey() != "" {
+			continue
+		}
+		durations[task.uuid] += event.duration
+		taskMap[task.uuid] = task
+	}
+
+	var result []skippedTask
+	for uuid, dur := range durations {
+		result = append(result, skippedTask{task: taskMap[uuid], duration: dur})
+	}
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].task.name < result[j].task.name
+	})
+	return result
+}
+
+func printSkippedTasks(w io.Writer, skipped []skippedTask, shortUUIDs map[string]string) {
+	maxShortLen := 4
+	for _, s := range skipped {
+		if su := shortUUIDs[s.task.uuid]; len(su) > maxShortLen {
+			maxShortLen = len(su)
+		}
+	}
+	nameWidth := 30
+	for _, s := range skipped {
+		if len(s.task.name) > nameWidth {
+			nameWidth = len(s.task.name)
+		}
+	}
+	for _, s := range skipped {
+		fmt.Fprintf(w, "  %-*s %-*s %s\n", maxShortLen, shortUUIDs[s.task.uuid], nameWidth, s.task.name, formatDuration(s.duration))
+	}
 }
 
 func buildSyncEntries(worklog *Worklog, taskUUID string, fromDay, toDay time.Time, roundingSteps []RoundingStep) ([]syncEntry, error) {
@@ -633,6 +709,8 @@ func buildTimesheetFromSyncEntries(entries []syncEntry, from, to time.Time) *Tim
 
 	taskDurations := make(map[string][]int)
 	taskMap := make(map[string]*Task)
+	taskIssueKeys := make(map[string]string)
+	taskHasComments := make(map[string][]bool)
 	for _, e := range entries {
 		dayStr := time.Date(e.start.Year(), e.start.Month(), e.start.Day(), 0, 0, 0, 0, e.start.Location()).Format("2006-01-02")
 		idx, ok := dayIndex[dayStr]
@@ -642,8 +720,13 @@ func buildTimesheetFromSyncEntries(entries []syncEntry, from, to time.Time) *Tim
 		if _, ok := taskDurations[e.task.uuid]; !ok {
 			taskDurations[e.task.uuid] = make([]int, len(days))
 			taskMap[e.task.uuid] = e.task
+			taskHasComments[e.task.uuid] = make([]bool, len(days))
 		}
 		taskDurations[e.task.uuid][idx] += e.duration
+		if taskIssueKeys[e.task.uuid] == "" && e.issueKey != "" {
+			taskIssueKeys[e.task.uuid] = e.issueKey
+		}
+		taskHasComments[e.task.uuid][idx] = taskHasComments[e.task.uuid][idx] || e.comment != ""
 	}
 
 	var rows []TimesheetRow
@@ -653,9 +736,11 @@ func buildTimesheetFromSyncEntries(entries []syncEntry, from, to time.Time) *Tim
 			total += d
 		}
 		rows = append(rows, TimesheetRow{
-			task:      taskMap[uuid],
-			durations: durations,
-			total:     total,
+			task:        taskMap[uuid],
+			durations:   durations,
+			total:       total,
+			issueKey:    taskIssueKeys[uuid],
+			hasComments: taskHasComments[uuid],
 		})
 	}
 
