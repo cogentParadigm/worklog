@@ -1,3 +1,10 @@
+# [0.24.0](https://github.com/cogentParadigm/worklog/compare/v0.23.0...v0.24.0) (2026-05-09)
+
+
+### Features
+
+* **jira:** use task description as tempo worklog comment ([1215e48](https://github.com/cogentParadigm/worklog/commit/1215e482c85611631052c75a28a88e06b8fed056))
+
 # [0.23.0](https://github.com/cogentParadigm/worklog/compare/v0.22.0...v0.23.0) (2026-05-09)
 
 
