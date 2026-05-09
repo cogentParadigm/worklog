@@ -10,9 +10,10 @@ import (
 )
 
 type Timesheet struct {
-	days   []time.Time
-	rows   []TimesheetRow
-	totals []int // daily totals in seconds
+	days       []time.Time
+	rows       []TimesheetRow
+	totals     []int // daily totals in seconds
+	shortUUIDs map[string]string
 }
 
 type TimesheetRow struct {
@@ -73,9 +74,10 @@ func hideEmptyColumns(ts *Timesheet) *Timesheet {
 	}
 
 	return &Timesheet{
-		days:   newDays,
-		rows:   newRows,
-		totals: newTotals,
+		days:       newDays,
+		rows:       newRows,
+		totals:     newTotals,
+		shortUUIDs: ts.shortUUIDs,
 	}
 }
 
@@ -174,11 +176,13 @@ func generateTimesheet(worklog *Worklog, from, to time.Time) *Timesheet {
 		}
 	}
 
-	return &Timesheet{
+	ts := &Timesheet{
 		days:   days,
 		rows:   rows,
 		totals: totals,
 	}
+	ts.shortUUIDs = shortUUIDs(worklog.allTaskUUIDs())
+	return ts
 }
 
 func formatDurationDecimal(seconds int) string {
@@ -205,13 +209,14 @@ func printTimesheetTable(w io.Writer, ts *Timesheet, decimal bool) {
 		return
 	}
 
-	numCols := len(ts.days) + 2 // task name + days + total
+	numCols := len(ts.days) + 3 // uuid + task name + days + total
 
 	// Build header
 	header := make([]string, numCols)
-	header[0] = "Task"
+	header[0] = "UUID"
+	header[1] = "Task"
 	for i, d := range ts.days {
-		header[i+1] = d.Format("01/02")
+		header[i+2] = d.Format("01/02")
 	}
 	header[numCols-1] = "Total"
 
@@ -221,13 +226,20 @@ func printTimesheetTable(w io.Writer, ts *Timesheet, decimal bool) {
 		colWidths[i] = len(h)
 	}
 	for _, row := range ts.rows {
-		if len(row.task.name) > colWidths[0] {
-			colWidths[0] = len(row.task.name)
+		uuid := ""
+		if ts.shortUUIDs != nil {
+			uuid = ts.shortUUIDs[row.task.uuid]
+		}
+		if len(uuid) > colWidths[0] {
+			colWidths[0] = len(uuid)
+		}
+		if len(row.task.name) > colWidths[1] {
+			colWidths[1] = len(row.task.name)
 		}
 		for i, dur := range row.durations {
 			cell := formatCell(dur, decimal)
-			if len(cell) > colWidths[i+1] {
-				colWidths[i+1] = len(cell)
+			if len(cell) > colWidths[i+2] {
+				colWidths[i+2] = len(cell)
 			}
 		}
 		cell := formatCell(row.total, decimal)
@@ -238,8 +250,8 @@ func printTimesheetTable(w io.Writer, ts *Timesheet, decimal bool) {
 	// Consider totals row for widths
 	for i, tot := range ts.totals {
 		cell := formatCell(tot, decimal)
-		if len(cell) > colWidths[i+1] {
-			colWidths[i+1] = len(cell)
+		if len(cell) > colWidths[i+2] {
+			colWidths[i+2] = len(cell)
 		}
 	}
 
@@ -266,9 +278,12 @@ func printTimesheetTable(w io.Writer, ts *Timesheet, decimal bool) {
 
 	for _, row := range ts.rows {
 		cells := make([]string, numCols)
-		cells[0] = row.task.name
+		if ts.shortUUIDs != nil {
+			cells[0] = ts.shortUUIDs[row.task.uuid]
+		}
+		cells[1] = row.task.name
 		for i, dur := range row.durations {
-			cells[i+1] = formatCell(dur, decimal)
+			cells[i+2] = formatCell(dur, decimal)
 		}
 		cells[numCols-1] = formatCell(row.total, decimal)
 		printRow(cells)
@@ -278,9 +293,10 @@ func printTimesheetTable(w io.Writer, ts *Timesheet, decimal bool) {
 
 	// Totals row
 	totalCells := make([]string, numCols)
-	totalCells[0] = "Total"
+	totalCells[0] = ""
+	totalCells[1] = "Total"
 	for i, tot := range ts.totals {
-		totalCells[i+1] = formatCell(tot, decimal)
+		totalCells[i+2] = formatCell(tot, decimal)
 	}
 	totalCells[numCols-1] = formatCell(sum(ts.totals), decimal)
 	printRow(totalCells)
@@ -291,7 +307,7 @@ func printTimesheetCSV(w io.Writer, ts *Timesheet, decimal bool) {
 	defer writer.Flush()
 
 	// Header
-	header := []string{"Task"}
+	header := []string{"UUID", "Task"}
 	for _, d := range ts.days {
 		header = append(header, d.Format("2006-01-02"))
 	}
@@ -300,7 +316,13 @@ func printTimesheetCSV(w io.Writer, ts *Timesheet, decimal bool) {
 
 	// Rows
 	for _, row := range ts.rows {
-		record := []string{row.task.name}
+		record := []string{}
+		if ts.shortUUIDs != nil {
+			record = append(record, ts.shortUUIDs[row.task.uuid])
+		} else {
+			record = append(record, "")
+		}
+		record = append(record, row.task.name)
 		for _, dur := range row.durations {
 			record = append(record, formatCell(dur, decimal))
 		}
@@ -309,7 +331,7 @@ func printTimesheetCSV(w io.Writer, ts *Timesheet, decimal bool) {
 	}
 
 	// Totals row
-	record := []string{"Total"}
+	record := []string{"", "Total"}
 	for _, tot := range ts.totals {
 		record = append(record, formatCell(tot, decimal))
 	}

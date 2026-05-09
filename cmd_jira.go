@@ -233,22 +233,32 @@ func runJiraSync(args []string) error {
 
 	if *syncFormat == "timesheet" {
 		ts := buildTimesheetFromSyncEntries(entries, fromDay, toDay)
+		ts.shortUUIDs = shortUUIDs(worklog.allTaskUUIDs())
 		if *syncHideEmpty {
 			ts = hideEmptyColumns(ts)
 		}
 		printTimesheetTable(os.Stdout, ts, *syncDecimal)
 		fmt.Printf("\nTotal: %d worklog(s) to send.\n", len(entries))
 	} else {
-		fmt.Printf("%-30s %-12s %-10s %-8s %s\n", "Task", "Issue Key", "Date", "Duration", "Comment")
-		fmt.Println(strings.Repeat("-", 80))
+		allTaskUUIDs := worklog.allTaskUUIDs()
+		shortTaskUUIDs := shortUUIDs(allTaskUUIDs)
+		maxShortLen := 4
+		for _, su := range shortTaskUUIDs {
+			if len(su) > maxShortLen {
+				maxShortLen = len(su)
+			}
+		}
+
+		fmt.Printf("%-*s %-30s %-12s %-10s %-8s %s\n", maxShortLen, "UUID", "Task", "Issue Key", "Date", "Duration", "Comment")
+		fmt.Println(strings.Repeat("-", maxShortLen+94))
 		for _, e := range entries {
 			durStr := formatDuration(e.duration)
 			dateStr := e.start.Format("2006-01-02")
 			name := truncate(e.task.name, 30)
 			comment := truncate(e.comment, 30)
-			fmt.Printf("%-30s %-12s %-10s %-8s %s\n", name, e.issueKey, dateStr, durStr, comment)
+			fmt.Printf("%-*s %-30s %-12s %-10s %-8s %s\n", maxShortLen, shortTaskUUIDs[e.task.uuid], name, e.issueKey, dateStr, durStr, comment)
 		}
-		fmt.Println(strings.Repeat("-", 80))
+		fmt.Println(strings.Repeat("-", maxShortLen+94))
 		fmt.Printf("Total: %d worklog(s) to send.\n", len(entries))
 	}
 
