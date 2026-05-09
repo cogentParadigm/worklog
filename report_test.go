@@ -516,3 +516,69 @@ func TestHideEmptyColumnsAllEmpty(t *testing.T) {
 		t.Errorf("Expected 0 rows after hiding all empty, got %d", len(filtered.rows))
 	}
 }
+
+func TestPrintTimesheetTableWithAttributes(t *testing.T) {
+	task := NewTask("Test Task")
+	day := time.Date(2023, 8, 14, 0, 0, 0, 0, time.UTC)
+
+	ts := &Timesheet{
+		days: []time.Time{day},
+		rows: []TimesheetRow{
+			{
+				task:       task,
+				durations:  []int{3600},
+				total:      3600,
+				attributes: map[string]string{"_WorkType_": "Project Management"},
+			},
+		},
+		totals:      []int{3600},
+		shortUUIDs:  map[string]string{task.uuid: "abc"},
+		defaultAttrs: map[string]string{"_WorkType_": "Development"},
+	}
+
+	var buf bytes.Buffer
+	printTimesheetTable(&buf, ts, false)
+	output := buf.String()
+
+	if !strings.Contains(output, "Work Type") {
+		t.Errorf("Expected output to contain humanized header 'Work Type'")
+	}
+	if !strings.Contains(output, "Project Management") {
+		t.Errorf("Expected output to contain override value 'Project Management'")
+	}
+	if strings.Contains(output, "Development") {
+		t.Errorf("Expected output NOT to contain default value 'Development'")
+	}
+}
+
+func TestHideEmptyColumnsPreservesAttributes(t *testing.T) {
+	task := NewTask("Test Task")
+	day1 := time.Date(2023, 8, 14, 0, 0, 0, 0, time.UTC)
+	day2 := time.Date(2023, 8, 15, 0, 0, 0, 0, time.UTC)
+
+	ts := &Timesheet{
+		days: []time.Time{day1, day2},
+		rows: []TimesheetRow{
+			{
+				task:       task,
+				durations:  []int{3600, 0},
+				total:      3600,
+				attributes: map[string]string{"_WorkType_": "Review"},
+			},
+		},
+		totals:      []int{3600, 0},
+		shortUUIDs:  map[string]string{task.uuid: "abc"},
+		defaultAttrs: map[string]string{"_WorkType_": "Development"},
+	}
+
+	filtered := hideEmptyColumns(ts)
+	if len(filtered.rows) != 1 {
+		t.Fatalf("Expected 1 row, got %d", len(filtered.rows))
+	}
+	if filtered.rows[0].attributes["_WorkType_"] != "Review" {
+		t.Errorf("Expected attribute to be preserved, got %q", filtered.rows[0].attributes["_WorkType_"])
+	}
+	if filtered.defaultAttrs["_WorkType_"] != "Development" {
+		t.Errorf("Expected defaultAttrs to be preserved, got %q", filtered.defaultAttrs["_WorkType_"])
+	}
+}

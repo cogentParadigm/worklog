@@ -264,6 +264,85 @@ func TestTaskTempoAttributesRoundTrip(t *testing.T) {
 	}
 }
 
+func TestHumanizeLabel(t *testing.T) {
+	cases := []struct {
+		input    string
+		expected string
+	}{
+		{"_WorkType_", "Work Type"},
+		{"_Billable_", "Billable"},
+		{"_SomeOtherAttr_", "Some Other Attr"},
+		{"simple", "simple"},
+		{"", ""},
+		{"ProjectManagement", "Project Management"},
+		{"Project Management", "Project Management"},
+		{"Already Spaced", "Already Spaced"},
+	}
+	for _, c := range cases {
+		got := humanizeLabel(c.input)
+		if got != c.expected {
+			t.Errorf("humanizeLabel(%q) = %q, want %q", c.input, got, c.expected)
+		}
+	}
+}
+
+func TestBuildHumanizedAttrKeys(t *testing.T) {
+	labels := buildHumanizedAttrKeys([]string{"_WorkType_", "_Billable_"})
+	if len(labels) != 2 {
+		t.Fatalf("expected 2 labels, got %d", len(labels))
+	}
+	if labels[0] != "Work Type" {
+		t.Errorf("label 0: got %q, want Work Type", labels[0])
+	}
+	if labels[1] != "Billable" {
+		t.Errorf("label 1: got %q, want Billable", labels[1])
+	}
+
+	// duplicate humanized labels should be disambiguated
+	labelsDup := buildHumanizedAttrKeys([]string{"_WorkType_", "WorkType"})
+	if labelsDup[0] != "Work Type" {
+		t.Errorf("label 0: got %q, want Work Type", labelsDup[0])
+	}
+	if labelsDup[1] != "Work Type (WorkType)" {
+		t.Errorf("label 1: got %q, want 'Work Type (WorkType)'", labelsDup[1])
+	}
+}
+
+func TestMergedTempoAttributes(t *testing.T) {
+	task := NewTask("Test")
+	task.SetTempoAttribute("_WorkType_", "Development")
+	task.SetTempoAttribute("_Billable_", "Yes")
+
+	cfg := &Config{
+		Tempo: TempoConfig{
+			Attributes: map[string]string{
+				"_WorkType_": "Review",
+				"_Location_": "Office",
+			},
+		},
+	}
+
+	attrs := mergedTempoAttributes(cfg, task)
+	if len(attrs) != 3 {
+		t.Fatalf("expected 3 attributes, got %d", len(attrs))
+	}
+	if attrs["_WorkType_"] != "Development" {
+		t.Errorf("_WorkType_: got %q, want Development", attrs["_WorkType_"])
+	}
+	if attrs["_Location_"] != "Office" {
+		t.Errorf("_Location_: got %q, want Office", attrs["_Location_"])
+	}
+	if attrs["_Billable_"] != "Yes" {
+		t.Errorf("_Billable_: got %q, want Yes", attrs["_Billable_"])
+	}
+
+	// nil config should return only task attributes
+	attrsNil := mergedTempoAttributes(nil, task)
+	if len(attrsNil) != 2 {
+		t.Fatalf("expected 2 attributes with nil config, got %d", len(attrsNil))
+	}
+}
+
 func TestBuildSyncEntriesBasic(t *testing.T) {
 	task := NewTask("Implement PROJ-123 feature")
 	task.uuid = "task-uuid-1"

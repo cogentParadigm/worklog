@@ -231,14 +231,33 @@ func runJiraSync(args []string) error {
 		return nil
 	}
 
+	mergedAttrs := make([]map[string]string, len(entries))
+	allAttrKeys := make(map[string]bool)
+	for i, e := range entries {
+		attrs := mergedTempoAttributes(cfg, e.task)
+		mergedAttrs[i] = attrs
+		for k := range attrs {
+			allAttrKeys[k] = true
+		}
+	}
+	var attrKeys []string
+	for k := range allAttrKeys {
+		attrKeys = append(attrKeys, k)
+	}
+	sort.Strings(attrKeys)
+	attrLabels := buildHumanizedAttrKeys(attrKeys)
+
 	if *syncFormat == "timesheet" {
 		ts := buildTimesheetFromSyncEntries(entries, fromDay, toDay)
 		ts.shortUUIDs = shortUUIDs(worklog.allTaskUUIDs())
+		ts.defaultAttrs = cfg.Tempo.Attributes
+		for i := range ts.rows {
+			ts.rows[i].attributes = mergedTempoAttributes(cfg, ts.rows[i].task)
+		}
 		if *syncHideEmpty {
 			ts = hideEmptyColumns(ts)
 		}
 		printTimesheetTable(os.Stdout, ts, *syncDecimal)
-		fmt.Printf("\nTotal: %d worklog(s) to send.\n", len(entries))
 	} else {
 		allTaskUUIDs := worklog.allTaskUUIDs()
 		shortTaskUUIDs := shortUUIDs(allTaskUUIDs)
@@ -249,18 +268,99 @@ func runJiraSync(args []string) error {
 			}
 		}
 
-		fmt.Printf("%-*s %-30s %-12s %-10s %-8s %s\n", maxShortLen, "UUID", "Task", "Issue Key", "Date", "Duration", "Comment")
-		fmt.Println(strings.Repeat("-", maxShortLen+94))
-		for _, e := range entries {
+		colNames := []string{"UUID", "Task", "Issue Key", "Date", "Duration", "Comment"}
+		colWidths := []int{maxShortLen, 30, 12, 10, 8, 30}
+		for _, label := range attrLabels {
+			colNames = append(colNames, label)
+			colWidths = append(colWidths, len(label))
+		}
+
+		for i, e := range entries {
+			if len(shortTaskUUIDs[e.task.uuid]) > colWidths[0] {
+				colWidths[0] = len(shortTaskUUIDs[e.task.uuid])
+			}
+			if len(e.issueKey) > colWidths[2] {
+				colWidths[2] = len(e.issueKey)
+			}
+			durStr := formatDuration(e.duration)
+			if len(durStr) > colWidths[4] {
+				colWidths[4] = len(durStr)
+			}
+			for j, k := range attrKeys {
+				val := ""
+				if v, ok := mergedAttrs[i][k]; ok {
+					if cfg.Tempo.Attributes[k] != v {
+						val = humanizeLabel(v)
+					}
+				}
+				if len(val) > colWidths[6+j] {
+					colWidths[6+j] = len(val)
+				}
+			}
+		}
+
+		for i, name := range colNames {
+			if i == 0 {
+				fmt.Printf("%-*s", colWidths[i], name)
+			} else {
+				fmt.Printf(" %-*s", colWidths[i], name)
+			}
+		}
+		fmt.Println()
+
+		totalWidth := 0
+		for i, w := range colWidths {
+			if i > 0 {
+				totalWidth++
+			}
+			totalWidth += w
+		}
+		fmt.Println(strings.Repeat("-", totalWidth))
+
+		for i, e := range entries {
 			durStr := formatDuration(e.duration)
 			dateStr := e.start.Format("2006-01-02")
 			name := truncate(e.task.name, 30)
 			comment := truncate(e.comment, 30)
-			fmt.Printf("%-*s %-30s %-12s %-10s %-8s %s\n", maxShortLen, shortTaskUUIDs[e.task.uuid], name, e.issueKey, dateStr, durStr, comment)
+			cells := []string{
+				shortTaskUUIDs[e.task.uuid],
+				name,
+				e.issueKey,
+				dateStr,
+				durStr,
+				comment,
+			}
+			for _, k := range attrKeys {
+				val := ""
+				if v, ok := mergedAttrs[i][k]; ok {
+					if cfg.Tempo.Attributes[k] != v {
+						val = humanizeLabel(v)
+					}
+				}
+				cells = append(cells, val)
+			}
+			for j, cell := range cells {
+				if j == 0 {
+					fmt.Printf("%-*s", colWidths[j], cell)
+				} else {
+					fmt.Printf(" %-*s", colWidths[j], cell)
+				}
+			}
+			fmt.Println()
 		}
-		fmt.Println(strings.Repeat("-", maxShortLen+94))
-		fmt.Printf("Total: %d worklog(s) to send.\n", len(entries))
+
+		fmt.Println(strings.Repeat("-", totalWidth))
 	}
+
+	if len(cfg.Tempo.Attributes) > 0 {
+		parts := make([]string, 0, len(cfg.Tempo.Attributes))
+		for k, v := range cfg.Tempo.Attributes {
+			parts = append(parts, fmt.Sprintf("%s=%s", humanizeLabel(k), humanizeLabel(v)))
+		}
+		sort.Strings(parts)
+		fmt.Printf("Default Tempo attributes: %s\n", strings.Join(parts, ", "))
+	}
+	fmt.Printf("Total: %d worklog(s) to send.\n", len(entries))
 
 	if *syncDryRun {
 		fmt.Println("Dry run complete. No entries were sent.")
@@ -309,13 +409,7 @@ func runJiraSync(args []string) error {
 			e.task.SetIssueID(id)
 			issueID = id
 		}
-		attrs := make(map[string]string)
-		for k, v := range cfg.Tempo.Attributes {
-			attrs[k] = v
-		}
-		for k, v := range e.task.TempoAttributes() {
-			attrs[k] = v
-		}
+		attrs := mergedTempoAttributes(cfg, e.task)
 		wl := tempo.Worklog{
 			IssueId:          issueID,
 			TimeSpentSeconds: e.duration,
@@ -614,4 +708,51 @@ func truncate(s string, maxLen int) string {
 		return s
 	}
 	return s[:maxLen-3] + "..."
+}
+
+func humanizeLabel(s string) string {
+	s = strings.Trim(s, "_")
+	var result []rune
+	for i, r := range s {
+		if i > 0 && r >= 'A' && r <= 'Z' {
+			if len(result) > 0 {
+				prev := result[len(result)-1]
+				if prev >= 'a' && prev <= 'z' {
+					result = append(result, ' ')
+				}
+			}
+		}
+		result = append(result, r)
+	}
+	return string(result)
+}
+
+// buildHumanizedAttrKeys converts raw Tempo attribute keys to human-readable
+// column labels. If two different raw keys map to the same label, the raw key
+// is appended in parentheses to disambiguate.
+func buildHumanizedAttrKeys(attrKeys []string) []string {
+	seen := make(map[string]bool)
+	labels := make([]string, len(attrKeys))
+	for i, k := range attrKeys {
+		label := humanizeLabel(k)
+		if seen[label] {
+			label = fmt.Sprintf("%s (%s)", label, k)
+		}
+		seen[label] = true
+		labels[i] = label
+	}
+	return labels
+}
+
+func mergedTempoAttributes(cfg *Config, task *Task) map[string]string {
+	attrs := make(map[string]string)
+	if cfg != nil {
+		for k, v := range cfg.Tempo.Attributes {
+			attrs[k] = v
+		}
+	}
+	for k, v := range task.TempoAttributes() {
+		attrs[k] = v
+	}
+	return attrs
 }

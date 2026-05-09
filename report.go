@@ -10,16 +10,18 @@ import (
 )
 
 type Timesheet struct {
-	days       []time.Time
-	rows       []TimesheetRow
-	totals     []int // daily totals in seconds
-	shortUUIDs map[string]string
+	days        []time.Time
+	rows        []TimesheetRow
+	totals      []int // daily totals in seconds
+	shortUUIDs  map[string]string
+	defaultAttrs map[string]string // Tempo attribute defaults (sync preview only)
 }
 
 type TimesheetRow struct {
-	task      *Task
-	durations []int // per day, in seconds
-	total     int   // row total in seconds
+	task       *Task
+	durations  []int // per day, in seconds
+	total      int   // row total in seconds
+	attributes map[string]string // merged Tempo attributes (sync preview only)
 }
 
 func eventDateRange(worklog *Worklog) (time.Time, time.Time) {
@@ -67,17 +69,19 @@ func hideEmptyColumns(ts *Timesheet) *Timesheet {
 			newTotal += row.durations[idx]
 		}
 		newRows[i] = TimesheetRow{
-			task:      row.task,
-			durations: newDurations,
-			total:     newTotal,
+			task:       row.task,
+			durations:  newDurations,
+			total:      newTotal,
+			attributes: row.attributes,
 		}
 	}
 
 	return &Timesheet{
-		days:       newDays,
-		rows:       newRows,
-		totals:     newTotals,
-		shortUUIDs: ts.shortUUIDs,
+		days:         newDays,
+		rows:         newRows,
+		totals:       newTotals,
+		shortUUIDs:   ts.shortUUIDs,
+		defaultAttrs: ts.defaultAttrs,
 	}
 }
 
@@ -209,7 +213,23 @@ func printTimesheetTable(w io.Writer, ts *Timesheet, decimal bool) {
 		return
 	}
 
-	numCols := len(ts.days) + 3 // uuid + task name + days + total
+	// Determine attribute columns (sync preview only)
+	attrKeysSet := make(map[string]bool)
+	for _, row := range ts.rows {
+		for k := range row.attributes {
+			attrKeysSet[k] = true
+		}
+	}
+	var attrKeys []string
+	for k := range attrKeysSet {
+		attrKeys = append(attrKeys, k)
+	}
+	sort.Strings(attrKeys)
+	attrLabels := buildHumanizedAttrKeys(attrKeys)
+	attrColCount := len(attrKeys)
+
+	numBaseCols := len(ts.days) + 3 // uuid + task name + days + total
+	numCols := numBaseCols + attrColCount
 
 	// Build header
 	header := make([]string, numCols)
@@ -218,7 +238,10 @@ func printTimesheetTable(w io.Writer, ts *Timesheet, decimal bool) {
 	for i, d := range ts.days {
 		header[i+2] = d.Format("01/02")
 	}
-	header[numCols-1] = "Total"
+	header[numBaseCols-1] = "Total"
+	for i, label := range attrLabels {
+		header[numBaseCols+i] = label
+	}
 
 	// Compute column widths
 	colWidths := make([]int, numCols)
@@ -243,16 +266,31 @@ func printTimesheetTable(w io.Writer, ts *Timesheet, decimal bool) {
 			}
 		}
 		cell := formatCell(row.total, decimal)
-		if len(cell) > colWidths[numCols-1] {
-			colWidths[numCols-1] = len(cell)
+		if len(cell) > colWidths[numBaseCols-1] {
+			colWidths[numBaseCols-1] = len(cell)
+		}
+		for i, k := range attrKeys {
+			val := ""
+			if v, ok := row.attributes[k]; ok {
+				if ts.defaultAttrs == nil || ts.defaultAttrs[k] != v {
+					val = humanizeLabel(v)
+				}
+			}
+			if len(val) > colWidths[numBaseCols+i] {
+				colWidths[numBaseCols+i] = len(val)
+			}
 		}
 	}
-	// Consider totals row for widths
+	// Consider totals row for widths (base columns only)
 	for i, tot := range ts.totals {
 		cell := formatCell(tot, decimal)
 		if len(cell) > colWidths[i+2] {
 			colWidths[i+2] = len(cell)
 		}
+	}
+	cell := formatCell(sum(ts.totals), decimal)
+	if len(cell) > colWidths[numBaseCols-1] {
+		colWidths[numBaseCols-1] = len(cell)
 	}
 
 	// Helper to print a row
@@ -285,7 +323,16 @@ func printTimesheetTable(w io.Writer, ts *Timesheet, decimal bool) {
 		for i, dur := range row.durations {
 			cells[i+2] = formatCell(dur, decimal)
 		}
-		cells[numCols-1] = formatCell(row.total, decimal)
+		cells[numBaseCols-1] = formatCell(row.total, decimal)
+		for i, k := range attrKeys {
+			val := ""
+			if v, ok := row.attributes[k]; ok {
+				if ts.defaultAttrs == nil || ts.defaultAttrs[k] != v {
+					val = humanizeLabel(v)
+				}
+			}
+			cells[numBaseCols+i] = val
+		}
 		printRow(cells)
 	}
 
@@ -298,7 +345,7 @@ func printTimesheetTable(w io.Writer, ts *Timesheet, decimal bool) {
 	for i, tot := range ts.totals {
 		totalCells[i+2] = formatCell(tot, decimal)
 	}
-	totalCells[numCols-1] = formatCell(sum(ts.totals), decimal)
+	totalCells[numBaseCols-1] = formatCell(sum(ts.totals), decimal)
 	printRow(totalCells)
 }
 
