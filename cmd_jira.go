@@ -648,19 +648,8 @@ func buildSyncEntries(worklog *Worklog, taskUUID string, fromDay, toDay time.Tim
 			continue
 		}
 
-		// Combine unique non-empty comments
-		seen := make(map[string]bool)
-		var parts []string
-		for _, event := range g.events {
-			c := strings.TrimSpace(event.comment)
-			if c != "" && !seen[c] {
-				seen[c] = true
-				parts = append(parts, c)
-			}
-		}
-		if len(parts) > 0 {
-			g.comment = strings.Join(parts, "; ")
-		}
+		// Use task description as Tempo worklog comment
+		g.comment = strings.TrimSpace(g.task.description)
 
 		entries = append(entries, *g)
 	}
@@ -726,7 +715,7 @@ func buildTimesheetFromSyncEntries(entries []syncEntry, from, to time.Time) *Tim
 		if taskIssueKeys[e.task.uuid] == "" && e.issueKey != "" {
 			taskIssueKeys[e.task.uuid] = e.issueKey
 		}
-		taskHasComments[e.task.uuid][idx] = taskHasComments[e.task.uuid][idx] || e.comment != ""
+		taskHasComments[e.task.uuid][idx] = taskHasComments[e.task.uuid][idx] || strings.TrimSpace(e.task.description) != ""
 	}
 
 	var rows []TimesheetRow

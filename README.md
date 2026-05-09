@@ -337,11 +337,11 @@ worklog jira attributes
 
 ### `jira sync`
 
-Syncs time entries to Tempo Cloud (Jira). Entries are **merged by task and date** before sending: multiple small entries on the same day for the same task are summed into a single worklog with combined comments. By default, only unsynced entries are sent.
+Syncs time entries to Tempo Cloud (Jira). Entries are **merged by task and date** before sending: multiple small entries on the same day for the same task are summed into a single worklog, using the task description as the worklog comment. By default, only unsynced entries are sent.
 
 Issue keys are auto-detected from task names (e.g., `PROJ-123`) or set explicitly via `-issue-key`. Before sending, issue keys are resolved to numeric Jira issue IDs via the Jira REST API. Resolved IDs are cached on the task as `X-WORKLOG-ISSUE-ID` so subsequent syncs skip the lookup.
 
-Previews (dry-run output in both `list` and `timesheet` formats) include short task UUIDs for easy cross-referencing with other commands. The timesheet preview also shows the mapped **Issue Key** after the Total column, and appends `*` to duration cells when the corresponding worklog has a comment. Tasks with time entries but no resolvable issue key are listed under a "Skipped tasks" summary at the end of the preview.
+Previews (dry-run output in both `list` and `timesheet` formats) include short task UUIDs for easy cross-referencing with other commands. The timesheet preview also shows the mapped **Issue Key** after the Total column, and appends `*` to duration cells when the task has a non-empty description (indicating the worklog will include a comment). Tasks with time entries but no resolvable issue key are listed under a "Skipped tasks" summary at the end of the preview.
 
 **Tempo work attributes:** Work attributes (such as `_WorkType_`) can be sent with each worklog. Attributes are set per-task using `worklog task update -attr key=value`. They are also merged with any `tempo.attributes` defined in `config.yaml`, with task-level values taking precedence.
 

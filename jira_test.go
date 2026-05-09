@@ -375,19 +375,20 @@ func TestBuildSyncEntriesBasic(t *testing.T) {
 func TestBuildSyncEntriesAggregatesSameTaskSameDay(t *testing.T) {
 	task := NewTask("Matt - ABC-100")
 	task.uuid = "task-matt"
+	task.description = "Daily standup tasks"
 
 	event1 := NewEvent(task.uuid,
 		time.Date(2026, 5, 6, 9, 0, 0, 0, time.UTC),
 		time.Date(2026, 5, 6, 9, 10, 0, 0, time.UTC),
-		600, task.name, "Standup sync")
+		600, task.name, "")
 	event2 := NewEvent(task.uuid,
 		time.Date(2026, 5, 6, 14, 0, 0, 0, time.UTC),
 		time.Date(2026, 5, 6, 14, 10, 0, 0, time.UTC),
-		600, task.name, "Follow-up discussion")
+		600, task.name, "")
 	event3 := NewEvent(task.uuid,
 		time.Date(2026, 5, 6, 16, 0, 0, 0, time.UTC),
 		time.Date(2026, 5, 6, 16, 10, 0, 0, time.UTC),
-		600, task.name, "Follow-up discussion") // duplicate comment
+		600, task.name, "")
 
 	wl := &Worklog{tasks: []*Task{task}, events: []*Event{event1, event2, event3}}
 
@@ -404,7 +405,7 @@ func TestBuildSyncEntriesAggregatesSameTaskSameDay(t *testing.T) {
 	if entries[0].start.Hour() != 9 {
 		t.Errorf("start time should be earliest event: got hour %d, want 9", entries[0].start.Hour())
 	}
-	wantComment := "Standup sync; Follow-up discussion"
+	wantComment := "Daily standup tasks"
 	if entries[0].comment != wantComment {
 		t.Errorf("comment: got %q, want %q", entries[0].comment, wantComment)
 	}
@@ -416,25 +417,27 @@ func TestBuildSyncEntriesAggregatesSameTaskSameDay(t *testing.T) {
 func TestBuildSyncEntriesSeparateTasksSameDay(t *testing.T) {
 	taskMatt := NewTask("Matt - ABC-100")
 	taskMatt.uuid = "task-matt"
+	taskMatt.description = "Sprint planning and reviews"
 	taskNathan := NewTask("Nathan - ABC-100")
 	taskNathan.uuid = "task-nathan"
+	taskNathan.description = "Code review and architecture"
 
 	eventMatt := NewEvent(taskMatt.uuid,
 		time.Date(2026, 5, 6, 9, 0, 0, 0, time.UTC),
 		time.Date(2026, 5, 6, 9, 10, 0, 0, time.UTC),
-		600, taskMatt.name, "Sprint planning")
+		600, taskMatt.name, "")
 	eventNathan1 := NewEvent(taskNathan.uuid,
 		time.Date(2026, 5, 6, 10, 0, 0, 0, time.UTC),
 		time.Date(2026, 5, 6, 10, 10, 0, 0, time.UTC),
-		600, taskNathan.name, "Code review")
+		600, taskNathan.name, "")
 	eventNathan2 := NewEvent(taskNathan.uuid,
 		time.Date(2026, 5, 6, 14, 0, 0, 0, time.UTC),
 		time.Date(2026, 5, 6, 14, 10, 0, 0, time.UTC),
-		600, taskNathan.name, "Code review")
+		600, taskNathan.name, "")
 	eventNathan3 := NewEvent(taskNathan.uuid,
 		time.Date(2026, 5, 6, 16, 0, 0, 0, time.UTC),
 		time.Date(2026, 5, 6, 16, 10, 0, 0, time.UTC),
-		600, taskNathan.name, "Architecture discussion")
+		600, taskNathan.name, "")
 
 	wl := &Worklog{
 		tasks:  []*Task{taskMatt, taskNathan},
@@ -457,13 +460,13 @@ func TestBuildSyncEntriesSeparateTasksSameDay(t *testing.T) {
 	if entries[0].duration != 600 {
 		t.Errorf("Matt duration: got %d, want 600", entries[0].duration)
 	}
-	if entries[0].comment != "Sprint planning" {
-		t.Errorf("Matt comment: got %q, want %q", entries[0].comment, "Sprint planning")
+	if entries[0].comment != "Sprint planning and reviews" {
+		t.Errorf("Matt comment: got %q, want %q", entries[0].comment, "Sprint planning and reviews")
 	}
 	if entries[1].duration != 1800 {
 		t.Errorf("Nathan duration: got %d, want 1800", entries[1].duration)
 	}
-	wantNathanComment := "Code review; Architecture discussion"
+	wantNathanComment := "Code review and architecture"
 	if entries[1].comment != wantNathanComment {
 		t.Errorf("Nathan comment: got %q, want %q", entries[1].comment, wantNathanComment)
 	}
@@ -472,6 +475,7 @@ func TestBuildSyncEntriesSeparateTasksSameDay(t *testing.T) {
 func TestBuildSyncEntriesNoComments(t *testing.T) {
 	task := NewTask("ABC-100")
 	task.uuid = "task-1"
+	task.description = "Task description fallback"
 
 	event1 := NewEvent(task.uuid,
 		time.Date(2026, 5, 6, 9, 0, 0, 0, time.UTC),
@@ -491,8 +495,8 @@ func TestBuildSyncEntriesNoComments(t *testing.T) {
 	if len(entries) != 1 {
 		t.Fatalf("expected 1 entry, got %d", len(entries))
 	}
-	if entries[0].comment != "" {
-		t.Errorf("empty comment: got %q, want empty", entries[0].comment)
+	if entries[0].comment != "Task description fallback" {
+		t.Errorf("comment: got %q, want %q", entries[0].comment, "Task description fallback")
 	}
 	if entries[0].duration != 1200 {
 		t.Errorf("duration: got %d, want 1200", entries[0].duration)
