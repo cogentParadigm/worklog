@@ -25,6 +25,39 @@ func (event *Event) getUUID() string {
 	return event.uuid
 }
 
+// Generic property helpers --------------------------------------------------
+
+func (event *Event) getProperty(token string) string {
+	for _, prop := range event.properties {
+		if prop.IANAToken == token && prop.Value != "" {
+			return prop.Value
+		}
+	}
+	return ""
+}
+
+func (event *Event) setProperty(token, value string) {
+	for i, prop := range event.properties {
+		if prop.IANAToken == token {
+			event.properties[i].Value = value
+			return
+		}
+	}
+	event.properties = append(event.properties, ics.IANAProperty{
+		BaseProperty: ics.BaseProperty{IANAToken: token, Value: value},
+	})
+}
+
+func (event *Event) removeProperty(token string) {
+	var newProps []ics.IANAProperty
+	for _, prop := range event.properties {
+		if prop.IANAToken != token {
+			newProps = append(newProps, prop)
+		}
+	}
+	event.properties = newProps
+}
+
 func NewEvent(taskUUID string, start, end time.Time, duration int, note, comment string) *Event {
 	now := time.Now().UTC()
 	return &Event{
@@ -45,20 +78,7 @@ func NewEvent(taskUUID string, start, end time.Time, duration int, note, comment
 }
 
 func (event *Event) updateLastModified() {
-	now := time.Now().UTC().Format("20060102T150405Z")
-	found := false
-	for i, prop := range event.properties {
-		if prop.IANAToken == "LAST-MODIFIED" {
-			event.properties[i].Value = now
-			found = true
-			break
-		}
-	}
-	if !found {
-		event.properties = append(event.properties, ics.IANAProperty{
-			BaseProperty: ics.BaseProperty{IANAToken: "LAST-MODIFIED", Value: now},
-		})
-	}
+	event.setProperty("LAST-MODIFIED", time.Now().UTC().Format("20060102T150405Z"))
 }
 
 func makeEventForVEvent(ve *ics.VEvent) Event {

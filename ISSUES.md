@@ -3,11 +3,7 @@
 This document tracks known issues identified during code review.
 
 
-- **Property manipulation methods repeat the same pattern**: `jira.go` and `event.go` contain ~10 methods (`SetIssueID`, `ClearIssueID`, `SetSyncedAt`, `SetTempoAttribute`, etc.) that all loop over `properties`, match by `IANAToken`, then update/delete/append. Add generic helpers: `setProperty`, `getProperty`, `removeProperty`.
-
-- **`buildSidecar` reimplements `IssueKey()` logic**: `sidecar.go:95-99` manually scans `task.properties` for `X-WORKLOG-ISSUE-KEY` instead of calling `task.IssueKey()`.
-
-- **`detectExistingICSFiles` hardcodes KTimeTracker paths**: `main.go:1050-1079` searches `~/.local/share/ktimetracker/` and `~/.kde/share/apps/ktimetracker/`, violating the AGENTS.md principle of iCalendar neutrality.
+- **`detectExistingICSFiles` hardcodes KTimeTracker paths`: `main.go:1050-1079` searches `~/.local/share/ktimetracker/` and `~/.kde/share/apps/ktimetracker/`, violating the AGENTS.md principle of iCalendar neutrality.
 
 - **`TimesheetRow` mixes general and sync-preview concerns**: `report.go:20-27` — `attributes`, `issueKey`, and `hasComments` are only populated/used by the Jira sync preview path but exist in the general report struct, coupling reporting to Jira sync.
 

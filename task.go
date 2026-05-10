@@ -21,6 +21,81 @@ func (task *Task) getUUID() string {
 	return task.uuid
 }
 
+// Generic property helpers --------------------------------------------------
+
+func (task *Task) getProperty(token string) string {
+	for _, prop := range task.properties {
+		if prop.IANAToken == token && prop.Value != "" {
+			return prop.Value
+		}
+	}
+	return ""
+}
+
+func (task *Task) setProperty(token, value string) {
+	for i, prop := range task.properties {
+		if prop.IANAToken == token {
+			task.properties[i].Value = value
+			return
+		}
+	}
+	task.properties = append(task.properties, ics.IANAProperty{
+		BaseProperty: ics.BaseProperty{IANAToken: token, Value: value},
+	})
+}
+
+func (task *Task) removeProperty(token string) {
+	var newProps []ics.IANAProperty
+	for _, prop := range task.properties {
+		if prop.IANAToken != token {
+			newProps = append(newProps, prop)
+		}
+	}
+	task.properties = newProps
+}
+
+func (task *Task) getPropertyParam(token, paramKey, paramValue string) string {
+	for _, prop := range task.properties {
+		if prop.IANAToken == token && prop.Value != "" {
+			if keys, ok := prop.ICalParameters[paramKey]; ok && len(keys) > 0 && keys[0] == paramValue {
+				return prop.Value
+			}
+		}
+	}
+	return ""
+}
+
+func (task *Task) setPropertyParam(token, paramKey, paramValue, value string) {
+	for i, prop := range task.properties {
+		if prop.IANAToken == token {
+			if keys, ok := prop.ICalParameters[paramKey]; ok && len(keys) > 0 && keys[0] == paramValue {
+				task.properties[i].Value = value
+				return
+			}
+		}
+	}
+	task.properties = append(task.properties, ics.IANAProperty{
+		BaseProperty: ics.BaseProperty{
+			IANAToken:      token,
+			ICalParameters: map[string][]string{paramKey: {paramValue}},
+			Value:          value,
+		},
+	})
+}
+
+func (task *Task) removePropertyParam(token, paramKey, paramValue string) {
+	var newProps []ics.IANAProperty
+	for _, prop := range task.properties {
+		if prop.IANAToken == token {
+			if keys, ok := prop.ICalParameters[paramKey]; ok && len(keys) > 0 && keys[0] == paramValue {
+				continue
+			}
+		}
+		newProps = append(newProps, prop)
+	}
+	task.properties = newProps
+}
+
 // ---------------------------------------------------------
 // convert between Task and ics.VTodo
 // ---------------------------------------------------------

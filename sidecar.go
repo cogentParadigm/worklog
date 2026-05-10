@@ -90,13 +90,8 @@ func buildSidecar(tasks []*Task, events []*Event) *Sidecar {
 	for _, task := range flattenTasks(tasks) {
 		meta := TaskMeta{
 			IssueID:    task.IssueID(),
+			IssueKey:   task.IssueKey(),
 			TempoAttrs: task.TempoAttributes(),
-		}
-		for _, prop := range task.properties {
-			if prop.IANAToken == "X-WORKLOG-ISSUE-KEY" {
-				meta.IssueKey = prop.Value
-				break
-			}
 		}
 		sc.Tasks[task.uuid] = meta
 	}
