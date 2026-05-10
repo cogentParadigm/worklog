@@ -517,7 +517,7 @@ func TestHideEmptyColumnsAllEmpty(t *testing.T) {
 	}
 }
 
-func TestPrintTimesheetTableWithAttributes(t *testing.T) {
+func TestPrintTimesheetTableWithExtraColumns(t *testing.T) {
 	task := NewTask("Test Task")
 	day := time.Date(2023, 8, 14, 0, 0, 0, 0, time.UTC)
 
@@ -525,33 +525,36 @@ func TestPrintTimesheetTableWithAttributes(t *testing.T) {
 		days: []time.Time{day},
 		rows: []TimesheetRow{
 			{
-				task:       task,
-				durations:  []int{3600},
-				total:      3600,
-				attributes: map[string]string{"_WorkType_": "Project Management"},
+				task:        task,
+				durations:   []int{3600},
+				total:       3600,
+				extraValues: []string{"PROJ-123", "Project Management"},
 			},
 		},
-		totals:      []int{3600},
-		shortUUIDs:  map[string]string{task.uuid: "abc"},
-		defaultAttrs: map[string]string{"_WorkType_": "Development"},
+		totals:       []int{3600},
+		shortUUIDs:   map[string]string{task.uuid: "abc"},
+		extraHeaders: []string{"Issue Key", "Work Type"},
 	}
 
 	var buf bytes.Buffer
 	printTimesheetTable(&buf, ts, false)
 	output := buf.String()
 
+	if !strings.Contains(output, "Issue Key") {
+		t.Errorf("Expected output to contain header 'Issue Key'")
+	}
 	if !strings.Contains(output, "Work Type") {
-		t.Errorf("Expected output to contain humanized header 'Work Type'")
+		t.Errorf("Expected output to contain header 'Work Type'")
+	}
+	if !strings.Contains(output, "PROJ-123") {
+		t.Errorf("Expected output to contain extra value 'PROJ-123'")
 	}
 	if !strings.Contains(output, "Project Management") {
-		t.Errorf("Expected output to contain override value 'Project Management'")
-	}
-	if strings.Contains(output, "Development") {
-		t.Errorf("Expected output NOT to contain default value 'Development'")
+		t.Errorf("Expected output to contain extra value 'Project Management'")
 	}
 }
 
-func TestHideEmptyColumnsPreservesAttributes(t *testing.T) {
+func TestHideEmptyColumnsPreservesExtras(t *testing.T) {
 	task := NewTask("Test Task")
 	day1 := time.Date(2023, 8, 14, 0, 0, 0, 0, time.UTC)
 	day2 := time.Date(2023, 8, 15, 0, 0, 0, 0, time.UTC)
@@ -560,25 +563,29 @@ func TestHideEmptyColumnsPreservesAttributes(t *testing.T) {
 		days: []time.Time{day1, day2},
 		rows: []TimesheetRow{
 			{
-				task:       task,
-				durations:  []int{3600, 0},
-				total:      3600,
-				attributes: map[string]string{"_WorkType_": "Review"},
+				task:           task,
+				durations:      []int{3600, 0},
+				total:          3600,
+				extraValues:    []string{"Review"},
+				dayAnnotations: []string{"*", ""},
 			},
 		},
-		totals:      []int{3600, 0},
-		shortUUIDs:  map[string]string{task.uuid: "abc"},
-		defaultAttrs: map[string]string{"_WorkType_": "Development"},
+		totals:       []int{3600, 0},
+		shortUUIDs:   map[string]string{task.uuid: "abc"},
+		extraHeaders: []string{"Status"},
 	}
 
 	filtered := hideEmptyColumns(ts)
 	if len(filtered.rows) != 1 {
 		t.Fatalf("Expected 1 row, got %d", len(filtered.rows))
 	}
-	if filtered.rows[0].attributes["_WorkType_"] != "Review" {
-		t.Errorf("Expected attribute to be preserved, got %q", filtered.rows[0].attributes["_WorkType_"])
+	if filtered.rows[0].extraValues[0] != "Review" {
+		t.Errorf("Expected extra value to be preserved, got %q", filtered.rows[0].extraValues[0])
 	}
-	if filtered.defaultAttrs["_WorkType_"] != "Development" {
-		t.Errorf("Expected defaultAttrs to be preserved, got %q", filtered.defaultAttrs["_WorkType_"])
+	if len(filtered.rows[0].dayAnnotations) != 1 || filtered.rows[0].dayAnnotations[0] != "*" {
+		t.Errorf("Expected day annotation to be preserved and aligned, got %v", filtered.rows[0].dayAnnotations)
+	}
+	if filtered.extraHeaders[0] != "Status" {
+		t.Errorf("Expected extraHeaders to be preserved, got %v", filtered.extraHeaders)
 	}
 }

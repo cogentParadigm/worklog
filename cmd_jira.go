@@ -505,8 +505,6 @@ func buildTimesheetFromSyncEntries(entries []syncEntry, from, to time.Time) *Tim
 
 	taskDurations := make(map[string][]int)
 	taskMap := make(map[string]*Task)
-	taskIssueKeys := make(map[string]string)
-	taskHasComments := make(map[string][]bool)
 	for _, e := range entries {
 		dayStr := time.Date(e.start.Year(), e.start.Month(), e.start.Day(), 0, 0, 0, 0, e.start.Location()).Format("2006-01-02")
 		idx, ok := dayIndex[dayStr]
@@ -516,13 +514,8 @@ func buildTimesheetFromSyncEntries(entries []syncEntry, from, to time.Time) *Tim
 		if _, ok := taskDurations[e.task.uuid]; !ok {
 			taskDurations[e.task.uuid] = make([]int, len(days))
 			taskMap[e.task.uuid] = e.task
-			taskHasComments[e.task.uuid] = make([]bool, len(days))
 		}
 		taskDurations[e.task.uuid][idx] += e.duration
-		if taskIssueKeys[e.task.uuid] == "" && e.issueKey != "" {
-			taskIssueKeys[e.task.uuid] = e.issueKey
-		}
-		taskHasComments[e.task.uuid][idx] = taskHasComments[e.task.uuid][idx] || strings.TrimSpace(e.task.description) != ""
 	}
 
 	var rows []TimesheetRow
@@ -532,11 +525,9 @@ func buildTimesheetFromSyncEntries(entries []syncEntry, from, to time.Time) *Tim
 			total += d
 		}
 		rows = append(rows, TimesheetRow{
-			task:        taskMap[uuid],
-			durations:   durations,
-			total:       total,
-			issueKey:    taskIssueKeys[uuid],
-			hasComments: taskHasComments[uuid],
+			task:      taskMap[uuid],
+			durations: durations,
+			total:     total,
 		})
 	}
 
@@ -628,10 +619,72 @@ func buildHumanizedAttrKeys(attrKeys []string) []string {
 func renderTimesheetPreview(w io.Writer, entries []syncEntry, fromDay, toDay time.Time, cfg *Config, shortTaskUUIDs map[string]string, hideEmpty bool, decimal bool) {
 	ts := buildTimesheetFromSyncEntries(entries, fromDay, toDay)
 	ts.shortUUIDs = shortTaskUUIDs
-	ts.defaultAttrs = cfg.Tempo.Attributes
-	for i := range ts.rows {
-		ts.rows[i].attributes = mergedTempoAttributes(cfg, ts.rows[i].task)
+
+	// Build Jira/Tempo-specific maps from entries.
+	taskIssueKeys := make(map[string]string)
+	taskHasComments := make(map[string][]bool)
+	dayIndex := buildDayIndex(ts.days)
+	for _, e := range entries {
+		dayStr := time.Date(e.start.Year(), e.start.Month(), e.start.Day(), 0, 0, 0, 0, e.start.Location()).Format("2006-01-02")
+		idx, ok := dayIndex[dayStr]
+		if !ok {
+			continue
+		}
+		if _, ok := taskHasComments[e.task.uuid]; !ok {
+			taskHasComments[e.task.uuid] = make([]bool, len(ts.days))
+		}
+		if taskIssueKeys[e.task.uuid] == "" && e.issueKey != "" {
+			taskIssueKeys[e.task.uuid] = e.issueKey
+		}
+		taskHasComments[e.task.uuid][idx] = taskHasComments[e.task.uuid][idx] || strings.TrimSpace(e.task.description) != ""
 	}
+
+	// Determine Tempo attribute columns.
+	attrKeysSet := make(map[string]bool)
+	for _, row := range ts.rows {
+		attrs := mergedTempoAttributes(cfg, row.task)
+		for k := range attrs {
+			attrKeysSet[k] = true
+		}
+	}
+	var attrKeys []string
+	for k := range attrKeysSet {
+		attrKeys = append(attrKeys, k)
+	}
+	sort.Strings(attrKeys)
+	attrLabels := buildHumanizedAttrKeys(attrKeys)
+
+	// Set extension headers: Issue Key + attribute columns.
+	ts.extraHeaders = append([]string{"Issue Key"}, attrLabels...)
+
+	// Populate per-row extension values and day annotations.
+	for i := range ts.rows {
+		row := &ts.rows[i]
+		attrs := mergedTempoAttributes(cfg, row.task)
+
+		extraValues := make([]string, len(ts.extraHeaders))
+		extraValues[0] = taskIssueKeys[row.task.uuid]
+		for j, k := range attrKeys {
+			val := ""
+			if v, ok := attrs[k]; ok {
+				if cfg.Tempo.Attributes[k] != v {
+					val = humanizeLabel(v)
+				}
+			}
+			extraValues[j+1] = val
+		}
+		row.extraValues = extraValues
+
+		if hasComments, ok := taskHasComments[row.task.uuid]; ok {
+			row.dayAnnotations = make([]string, len(ts.days))
+			for d, has := range hasComments {
+				if has {
+					row.dayAnnotations[d] = "*"
+				}
+			}
+		}
+	}
+
 	if hideEmpty {
 		ts = hideEmptyColumns(ts)
 	}

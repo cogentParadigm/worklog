@@ -10,20 +10,19 @@ import (
 )
 
 type Timesheet struct {
-	days        []time.Time
-	rows        []TimesheetRow
-	totals      []int // daily totals in seconds
-	shortUUIDs  map[string]string
-	defaultAttrs map[string]string // Tempo attribute defaults (sync preview only)
+	days         []time.Time
+	rows         []TimesheetRow
+	totals       []int // daily totals in seconds
+	shortUUIDs   map[string]string
+	extraHeaders []string // extension column headers
 }
 
 type TimesheetRow struct {
-	task        *Task
-	durations   []int // per day, in seconds
-	total       int   // row total in seconds
-	attributes  map[string]string // merged Tempo attributes (sync preview only)
-	issueKey    string            // sync preview only
-	hasComments []bool            // sync preview only, per day
+	task           *Task
+	durations      []int    // per day, in seconds
+	total          int      // row total in seconds
+	extraValues    []string // extension column values, aligned to extraHeaders
+	dayAnnotations []string // per-day suffix, e.g. "*" for comment indicator
 }
 
 func eventDateRange(worklog *Worklog) (time.Time, time.Time) {
@@ -65,16 +64,21 @@ func hideEmptyColumns(ts *Timesheet) *Timesheet {
 	newRows := make([]TimesheetRow, len(ts.rows))
 	for i, row := range ts.rows {
 		newDurations := make([]int, len(keptIndices))
+		newDayAnnotations := make([]string, len(keptIndices))
 		newTotal := 0
 		for j, idx := range keptIndices {
 			newDurations[j] = row.durations[idx]
+			if len(row.dayAnnotations) > idx {
+				newDayAnnotations[j] = row.dayAnnotations[idx]
+			}
 			newTotal += row.durations[idx]
 		}
 		newRows[i] = TimesheetRow{
-			task:       row.task,
-			durations:  newDurations,
-			total:      newTotal,
-			attributes: row.attributes,
+			task:           row.task,
+			durations:      newDurations,
+			total:          newTotal,
+			extraValues:    row.extraValues,
+			dayAnnotations: newDayAnnotations,
 		}
 	}
 
@@ -83,7 +87,7 @@ func hideEmptyColumns(ts *Timesheet) *Timesheet {
 		rows:         newRows,
 		totals:       newTotals,
 		shortUUIDs:   ts.shortUUIDs,
-		defaultAttrs: ts.defaultAttrs,
+		extraHeaders: ts.extraHeaders,
 	}
 }
 
@@ -221,28 +225,9 @@ func printTimesheetTable(w io.Writer, ts *Timesheet, decimal bool) {
 		return
 	}
 
-	// Determine attribute columns (sync preview only)
-	attrKeysSet := make(map[string]bool)
-	for _, row := range ts.rows {
-		for k := range row.attributes {
-			attrKeysSet[k] = true
-		}
-	}
-	var attrKeys []string
-	for k := range attrKeysSet {
-		attrKeys = append(attrKeys, k)
-	}
-	sort.Strings(attrKeys)
-	attrLabels := buildHumanizedAttrKeys(attrKeys)
-	attrColCount := len(attrKeys)
-
-	isSyncPreview := ts.defaultAttrs != nil
-
+	extraCount := len(ts.extraHeaders)
 	numBaseCols := len(ts.days) + 3 // uuid + task name + days + total
-	if isSyncPreview {
-		numBaseCols++ // + issue key
-	}
-	numCols := numBaseCols + attrColCount
+	numCols := numBaseCols + extraCount
 
 	// Build header
 	header := make([]string, numCols)
@@ -252,11 +237,8 @@ func printTimesheetTable(w io.Writer, ts *Timesheet, decimal bool) {
 		header[i+2] = d.Format("01/02")
 	}
 	header[2+len(ts.days)] = "Total"
-	if isSyncPreview {
-		header[3+len(ts.days)] = "Issue Key"
-	}
-	for i, label := range attrLabels {
-		header[numBaseCols+i] = label
+	for i, h := range ts.extraHeaders {
+		header[numBaseCols+i] = h
 	}
 
 	// Compute column widths
@@ -277,8 +259,8 @@ func printTimesheetTable(w io.Writer, ts *Timesheet, decimal bool) {
 		}
 		for i, dur := range row.durations {
 			cell := formatCell(dur, decimal)
-			if isSyncPreview && len(row.hasComments) > i && row.hasComments[i] {
-				cell += "*"
+			if len(row.dayAnnotations) > i && row.dayAnnotations[i] != "" {
+				cell += row.dayAnnotations[i]
 			}
 			if len(cell) > colWidths[i+2] {
 				colWidths[i+2] = len(cell)
@@ -288,18 +270,7 @@ func printTimesheetTable(w io.Writer, ts *Timesheet, decimal bool) {
 		if len(cell) > colWidths[2+len(ts.days)] {
 			colWidths[2+len(ts.days)] = len(cell)
 		}
-		if isSyncPreview {
-			if len(row.issueKey) > colWidths[3+len(ts.days)] {
-				colWidths[3+len(ts.days)] = len(row.issueKey)
-			}
-		}
-		for i, k := range attrKeys {
-			val := ""
-			if v, ok := row.attributes[k]; ok {
-				if ts.defaultAttrs == nil || ts.defaultAttrs[k] != v {
-					val = humanizeLabel(v)
-				}
-			}
+		for i, val := range row.extraValues {
 			if len(val) > colWidths[numBaseCols+i] {
 				colWidths[numBaseCols+i] = len(val)
 			}
@@ -346,22 +317,13 @@ func printTimesheetTable(w io.Writer, ts *Timesheet, decimal bool) {
 		cells[1] = row.task.name
 		for i, dur := range row.durations {
 			cell := formatCell(dur, decimal)
-			if isSyncPreview && len(row.hasComments) > i && row.hasComments[i] {
-				cell += "*"
+			if len(row.dayAnnotations) > i && row.dayAnnotations[i] != "" {
+				cell += row.dayAnnotations[i]
 			}
 			cells[i+2] = cell
 		}
 		cells[2+len(ts.days)] = formatCell(row.total, decimal)
-		if isSyncPreview {
-			cells[3+len(ts.days)] = row.issueKey
-		}
-		for i, k := range attrKeys {
-			val := ""
-			if v, ok := row.attributes[k]; ok {
-				if ts.defaultAttrs == nil || ts.defaultAttrs[k] != v {
-					val = humanizeLabel(v)
-				}
-			}
+		for i, val := range row.extraValues {
 			cells[numBaseCols+i] = val
 		}
 		printRow(cells)
