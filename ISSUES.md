@@ -3,8 +3,6 @@
 This document tracks known issues identified during code review.
 
 
-- **`detectExistingICSFiles` hardcodes KTimeTracker paths`: `main.go:1050-1079` searches `~/.local/share/ktimetracker/` and `~/.kde/share/apps/ktimetracker/`, violating the AGENTS.md principle of iCalendar neutrality.
-
 - **`TimesheetRow` mixes general and sync-preview concerns**: `report.go:20-27` — `attributes`, `issueKey`, and `hasComments` are only populated/used by the Jira sync preview path but exist in the general report struct, coupling reporting to Jira sync.
 
 - **`printTimesheetTable` is ~200 lines of dense formatting logic**: `report.go:212-375` computes column widths, builds headers, prints separators, and renders rows all in one function, with sync-preview-specific branches adding further complexity.
