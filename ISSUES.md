@@ -3,8 +3,6 @@
 This document tracks known issues identified during code review.
 
 
-- **Config `Get` / `GetUnmasked` duplication**: `config.go:110-164` has two near-identical 30-line switch statements. Any new key requires editing both. Have `Get` delegate to `GetUnmasked` and mask after, or use a struct tag/reflection approach.
-
 - **`resolveTaskUUID` and `resolveEventUUID` are ~90% identical**: `uuid.go:53-133` — same exact-match, prefix-scan, and ambiguous-reporting logic. Extract a generic `resolveByPrefix` helper.
 
 - **Property manipulation methods repeat the same pattern**: `jira.go` and `event.go` contain ~10 methods (`SetIssueID`, `ClearIssueID`, `SetSyncedAt`, `SetTempoAttribute`, etc.) that all loop over `properties`, match by `IANAToken`, then update/delete/append. Add generic helpers: `setProperty`, `getProperty`, `removeProperty`.

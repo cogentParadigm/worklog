@@ -107,35 +107,20 @@ func SaveConfig(cfg *Config) error {
 	return nil
 }
 
+var sensitiveConfigKeys = map[string]bool{
+	"tempo.token": true,
+	"jira.token":  true,
+}
+
 func (cfg *Config) Get(key string) (string, error) {
-	switch key {
-	case "worklog_file":
-		return cfg.WorklogFile, nil
-	case "tempo.base_url":
-		return cfg.Tempo.BaseURL, nil
-	case "tempo.token":
-		if cfg.Tempo.Token == "" {
-			return "", nil
-		}
-		return "<hidden>", nil
-	case "tempo.account_id":
-		return cfg.Tempo.AccountID, nil
-	case "jira.base_url":
-		return cfg.Jira.BaseURL, nil
-	case "jira.username":
-		return cfg.Jira.Username, nil
-	case "jira.token":
-		if cfg.Jira.Token == "" {
-			return "", nil
-		}
-		return "<hidden>", nil
-	case "tempo.rounding":
-		return roundingStepsString(cfg.Tempo.Rounding), nil
-	case "tempo.attributes":
-		return tempoAttributesString(cfg.Tempo.Attributes), nil
-	default:
-		return "", fmt.Errorf("unknown config key: %s", key)
+	val, err := cfg.GetUnmasked(key)
+	if err != nil {
+		return "", err
 	}
+	if sensitiveConfigKeys[key] && val != "" {
+		return "<hidden>", nil
+	}
+	return val, nil
 }
 
 func (cfg *Config) GetUnmasked(key string) (string, error) {
