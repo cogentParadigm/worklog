@@ -3,9 +3,7 @@
 This document tracks known issues identified during code review.
 
 
-- **`TimesheetRow` mixes general and sync-preview concerns**: `report.go:20-27` — `attributes`, `issueKey`, and `hasComments` are only populated/used by the Jira sync preview path but exist in the general report struct, coupling reporting to Jira sync.
-
-- **`printTimesheetTable` is ~200 lines of dense formatting logic**: `report.go:212-375` computes column widths, builds headers, prints separators, and renders rows all in one function, with sync-preview-specific branches adding further complexity.
+- **`printTimesheetTable` is ~200 lines of dense formatting logic**: `report.go:212-375` computes column widths, builds headers, prints separators, and renders rows all in one function.
 
 - **Dead debug code in `ical.go`**: `getProperties()` and `getSummaries()` (lines 83-95) are debug helpers with `fmt.Printf`, never called in production or tests.
 
@@ -19,4 +17,4 @@ This document tracks known issues identified during code review.
 
 ---
 
-*Last reviewed: 2026-05-09* 
+*Last reviewed: 2026-05-10* 
