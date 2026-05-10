@@ -25,3 +25,4 @@ policies:
           - "cli"
           - "jira"
           - "release"
+          - "report"

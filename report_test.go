@@ -517,6 +517,106 @@ func TestHideEmptyColumnsAllEmpty(t *testing.T) {
 	}
 }
 
+func TestPrintTimesheetTableExactOutput(t *testing.T) {
+	task := NewTask("Test Task")
+	day := time.Date(2023, 8, 14, 0, 0, 0, 0, time.UTC)
+
+	ts := &Timesheet{
+		days: []time.Time{day},
+		rows: []TimesheetRow{
+			{
+				task:        task,
+				durations:   []int{3600},
+				total:       3600,
+				extraValues: []string{},
+			},
+		},
+		totals:     []int{3600},
+		shortUUIDs: map[string]string{task.uuid: "abc"},
+	}
+
+	var buf bytes.Buffer
+	printTimesheetTable(&buf, ts, false)
+	output := buf.String()
+
+	expected := "UUID      Task 08/14 Total\n" +
+		"---- --------- ----- -----\n" +
+		"abc  Test Task    1h    1h\n" +
+		"---- --------- ----- -----\n" +
+		"         Total    1h    1h\n"
+
+	if output != expected {
+		t.Errorf("Exact output mismatch.\nExpected:\n%s\nGot:\n%s", expected, output)
+	}
+}
+
+func TestPrintTimesheetTableDecimalMode(t *testing.T) {
+	task := NewTask("Test Task")
+	day := time.Date(2023, 8, 14, 0, 0, 0, 0, time.UTC)
+
+	ts := &Timesheet{
+		days: []time.Time{day},
+		rows: []TimesheetRow{
+			{
+				task:        task,
+				durations:   []int{5400},
+				total:       5400,
+				extraValues: []string{},
+			},
+		},
+		totals:     []int{5400},
+		shortUUIDs: map[string]string{task.uuid: "abc"},
+	}
+
+	var buf bytes.Buffer
+	printTimesheetTable(&buf, ts, true)
+	output := buf.String()
+
+	expected := "UUID      Task 08/14 Total\n" +
+		"---- --------- ----- -----\n" +
+		"abc  Test Task  1.50  1.50\n" +
+		"---- --------- ----- -----\n" +
+		"         Total  1.50  1.50\n"
+
+	if output != expected {
+		t.Errorf("Decimal mode output mismatch.\nExpected:\n%s\nGot:\n%s", expected, output)
+	}
+}
+
+func TestPrintTimesheetTableWithAnnotations(t *testing.T) {
+	task := NewTask("Test Task")
+	day := time.Date(2023, 8, 14, 0, 0, 0, 0, time.UTC)
+
+	ts := &Timesheet{
+		days: []time.Time{day},
+		rows: []TimesheetRow{
+			{
+				task:           task,
+				durations:      []int{3600},
+				total:          3600,
+				dayAnnotations: []string{"*"},
+				extraValues:    []string{},
+			},
+		},
+		totals:     []int{3600},
+		shortUUIDs: map[string]string{task.uuid: "abc"},
+	}
+
+	var buf bytes.Buffer
+	printTimesheetTable(&buf, ts, false)
+	output := buf.String()
+
+	expected := "UUID      Task 08/14 Total\n" +
+		"---- --------- ----- -----\n" +
+		"abc  Test Task   1h*    1h\n" +
+		"---- --------- ----- -----\n" +
+		"         Total    1h    1h\n"
+
+	if output != expected {
+		t.Errorf("Annotation output mismatch.\nExpected:\n%s\nGot:\n%s", expected, output)
+	}
+}
+
 func TestPrintTimesheetTableWithExtraColumns(t *testing.T) {
 	task := NewTask("Test Task")
 	day := time.Date(2023, 8, 14, 0, 0, 0, 0, time.UTC)
@@ -540,17 +640,14 @@ func TestPrintTimesheetTableWithExtraColumns(t *testing.T) {
 	printTimesheetTable(&buf, ts, false)
 	output := buf.String()
 
-	if !strings.Contains(output, "Issue Key") {
-		t.Errorf("Expected output to contain header 'Issue Key'")
-	}
-	if !strings.Contains(output, "Work Type") {
-		t.Errorf("Expected output to contain header 'Work Type'")
-	}
-	if !strings.Contains(output, "PROJ-123") {
-		t.Errorf("Expected output to contain extra value 'PROJ-123'")
-	}
-	if !strings.Contains(output, "Project Management") {
-		t.Errorf("Expected output to contain extra value 'Project Management'")
+	expected := "UUID      Task 08/14 Total Issue Key          Work Type\n" +
+		"---- --------- ----- ----- --------- ------------------\n" +
+		"abc  Test Task    1h    1h  PROJ-123 Project Management\n" +
+		"---- --------- ----- ----- --------- ------------------\n" +
+		"         Total    1h    1h                             \n"
+
+	if output != expected {
+		t.Errorf("Extra columns output mismatch.\nExpected:\n%s\nGot:\n%s", expected, output)
 	}
 }
 

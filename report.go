@@ -219,17 +219,11 @@ func formatCell(seconds int, decimal bool) string {
 	return formatDuration(seconds)
 }
 
-func printTimesheetTable(w io.Writer, ts *Timesheet, decimal bool) {
-	if len(ts.rows) == 0 {
-		fmt.Fprintln(w, "No time entries in the selected date range.")
-		return
-	}
-
+func buildHeader(ts *Timesheet) []string {
 	extraCount := len(ts.extraHeaders)
 	numBaseCols := len(ts.days) + 3 // uuid + task name + days + total
 	numCols := numBaseCols + extraCount
 
-	// Build header
 	header := make([]string, numCols)
 	header[0] = "UUID"
 	header[1] = "Task"
@@ -240,106 +234,119 @@ func printTimesheetTable(w io.Writer, ts *Timesheet, decimal bool) {
 	for i, h := range ts.extraHeaders {
 		header[numBaseCols+i] = h
 	}
+	return header
+}
 
-	// Compute column widths
-	colWidths := make([]int, numCols)
-	for i, h := range header {
-		colWidths[i] = len(h)
+func buildDataRowCells(ts *Timesheet, row TimesheetRow, decimal bool) []string {
+	extraCount := len(ts.extraHeaders)
+	numBaseCols := len(ts.days) + 3
+	numCols := numBaseCols + extraCount
+
+	cells := make([]string, numCols)
+	if ts.shortUUIDs != nil {
+		cells[0] = ts.shortUUIDs[row.task.uuid]
 	}
-	for _, row := range ts.rows {
-		uuid := ""
-		if ts.shortUUIDs != nil {
-			uuid = ts.shortUUIDs[row.task.uuid]
+	cells[1] = row.task.name
+	for i, dur := range row.durations {
+		cell := formatCell(dur, decimal)
+		if len(row.dayAnnotations) > i && row.dayAnnotations[i] != "" {
+			cell += row.dayAnnotations[i]
 		}
-		if len(uuid) > colWidths[0] {
-			colWidths[0] = len(uuid)
-		}
-		if len(row.task.name) > colWidths[1] {
-			colWidths[1] = len(row.task.name)
-		}
-		for i, dur := range row.durations {
-			cell := formatCell(dur, decimal)
-			if len(row.dayAnnotations) > i && row.dayAnnotations[i] != "" {
-				cell += row.dayAnnotations[i]
-			}
-			if len(cell) > colWidths[i+2] {
-				colWidths[i+2] = len(cell)
-			}
-		}
-		cell := formatCell(row.total, decimal)
-		if len(cell) > colWidths[2+len(ts.days)] {
-			colWidths[2+len(ts.days)] = len(cell)
-		}
-		for i, val := range row.extraValues {
-			if len(val) > colWidths[numBaseCols+i] {
-				colWidths[numBaseCols+i] = len(val)
-			}
-		}
+		cells[i+2] = cell
 	}
-	// Consider totals row for widths (base columns only)
+	cells[2+len(ts.days)] = formatCell(row.total, decimal)
+	for i, val := range row.extraValues {
+		cells[numBaseCols+i] = val
+	}
+	return cells
+}
+
+func buildTotalsRowCells(ts *Timesheet, decimal bool) []string {
+	numBaseCols := len(ts.days) + 3
+	numCols := numBaseCols + len(ts.extraHeaders)
+
+	cells := make([]string, numCols)
+	cells[0] = ""
+	cells[1] = "Total"
 	for i, tot := range ts.totals {
-		cell := formatCell(tot, decimal)
-		if len(cell) > colWidths[i+2] {
-			colWidths[i+2] = len(cell)
-		}
+		cells[i+2] = formatCell(tot, decimal)
 	}
-	cell := formatCell(sum(ts.totals), decimal)
-	if len(cell) > colWidths[2+len(ts.days)] {
-		colWidths[2+len(ts.days)] = len(cell)
-	}
+	cells[2+len(ts.days)] = formatCell(sum(ts.totals), decimal)
+	return cells
+}
 
-	// Helper to print a row
-	printRow := func(cells []string) {
-		for i, cell := range cells {
-			if i == 0 {
-				fmt.Fprintf(w, "%-*s", colWidths[i], cell)
-			} else {
-				fmt.Fprintf(w, " %*s", colWidths[i], cell)
+type tableFormatter struct {
+	w         io.Writer
+	colWidths []int
+}
+
+func newTableFormatter(w io.Writer, rows [][]string) *tableFormatter {
+	if len(rows) == 0 {
+		return &tableFormatter{w: w}
+	}
+	numCols := len(rows[0])
+	colWidths := make([]int, numCols)
+	for _, row := range rows {
+		for i, cell := range row {
+			if i >= numCols {
+				break
+			}
+			if len(cell) > colWidths[i] {
+				colWidths[i] = len(cell)
 			}
 		}
-		fmt.Fprintln(w)
 	}
+	return &tableFormatter{w: w, colWidths: colWidths}
+}
 
-	// Header separator
-	sep := make([]string, numCols)
-	for i, w := range colWidths {
+func (tf *tableFormatter) printRow(cells []string) {
+	for i, cell := range cells {
+		if i == 0 {
+			fmt.Fprintf(tf.w, "%-*s", tf.colWidths[i], cell)
+		} else {
+			fmt.Fprintf(tf.w, " %*s", tf.colWidths[i], cell)
+		}
+	}
+	fmt.Fprintln(tf.w)
+}
+
+func (tf *tableFormatter) printSeparator() {
+	sep := make([]string, len(tf.colWidths))
+	for i, w := range tf.colWidths {
 		sep[i] = strings.Repeat("-", w)
 	}
+	tf.printRow(sep)
+}
 
-	printRow(header)
-	printRow(sep)
-
-	for _, row := range ts.rows {
-		cells := make([]string, numCols)
-		if ts.shortUUIDs != nil {
-			cells[0] = ts.shortUUIDs[row.task.uuid]
-		}
-		cells[1] = row.task.name
-		for i, dur := range row.durations {
-			cell := formatCell(dur, decimal)
-			if len(row.dayAnnotations) > i && row.dayAnnotations[i] != "" {
-				cell += row.dayAnnotations[i]
-			}
-			cells[i+2] = cell
-		}
-		cells[2+len(ts.days)] = formatCell(row.total, decimal)
-		for i, val := range row.extraValues {
-			cells[numBaseCols+i] = val
-		}
-		printRow(cells)
+func printTimesheetTable(w io.Writer, ts *Timesheet, decimal bool) {
+	if len(ts.rows) == 0 {
+		fmt.Fprintln(w, "No time entries in the selected date range.")
+		return
 	}
 
-	printRow(sep)
+	header := buildHeader(ts)
 
-	// Totals row
-	totalCells := make([]string, numCols)
-	totalCells[0] = ""
-	totalCells[1] = "Total"
-	for i, tot := range ts.totals {
-		totalCells[i+2] = formatCell(tot, decimal)
+	dataRows := make([][]string, len(ts.rows))
+	for i, row := range ts.rows {
+		dataRows[i] = buildDataRowCells(ts, row, decimal)
 	}
-	totalCells[2+len(ts.days)] = formatCell(sum(ts.totals), decimal)
-	printRow(totalCells)
+
+	totalsRow := buildTotalsRowCells(ts, decimal)
+
+	allRows := make([][]string, 0, 2+len(ts.rows))
+	allRows = append(allRows, header)
+	allRows = append(allRows, dataRows...)
+	allRows = append(allRows, totalsRow)
+
+	tf := newTableFormatter(w, allRows)
+
+	tf.printRow(header)
+	tf.printSeparator()
+	for _, cells := range dataRows {
+		tf.printRow(cells)
+	}
+	tf.printSeparator()
+	tf.printRow(totalsRow)
 }
 
 func printTimesheetCSV(w io.Writer, ts *Timesheet, decimal bool) {
