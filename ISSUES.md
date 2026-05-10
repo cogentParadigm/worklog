@@ -2,7 +2,6 @@
 
 This document tracks known issues identified during code review.
 
-- **`main.go` god function`: The `run()` function is 1235 lines containing inline flag setup, parsing, validation, and business logic for every subcommand. Extract each subcommand into a standalone function and use a simple command registry map.
 
 - **`cmd_jira.go` mixed concerns**: `runJiraSync` alone is ~300 lines mixing CLI parsing, API client setup, data aggregation, preview formatting, user confirmation, and API calls. `buildTimesheetFromSyncEntries` also duplicates day-range and row-building logic already in `generateTimesheet`. Split into dedicated phases and reuse the existing timesheet generator for previews.
 

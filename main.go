@@ -125,416 +125,20 @@ func run(args []string) error {
 		return flag.ErrHelp
 	}
 
-	switch args[0] {
-	case "task":
-		return runTask(args[1:])
-	case "time":
-		if len(args) < 2 {
-			printTimeUsage()
-			return fmt.Errorf("no time subcommand provided")
-		}
-		if isHelpFlag(args[1]) {
-			printTimeUsage()
-			return flag.ErrHelp
-		}
-		timeSubcommand := args[1]
-		timeArgs := args[2:]
+	commands := map[string]func([]string) error{
+		"task":   runTask,
+		"time":   runTime,
+		"jira":   runJira,
+		"config": runConfig,
+		"init":   runInit,
+		"report": runReport,
+	}
 
-		switch timeSubcommand {
-		case "add":
-			timeAddCommand := flag.NewFlagSet("time add", flag.ContinueOnError)
-			timeAddFile := timeAddCommand.String("file", "", "Path to .ics file (overrides WORKLOG_FILE)")
-			timeAddOutput := timeAddCommand.String("output", "", "Output path for the updated .ics file (defaults to input file)")
-			timeAddTask := timeAddCommand.String("task", "", "UUID (or short unique prefix) of the task to log time against (required)")
-			timeAddDuration := timeAddCommand.String("duration", "", "Duration to log (e.g., 30m, 1h30m, 3600s) (required)")
-			timeAddStart := timeAddCommand.String("start", "", "Start time (optional, defaults to now-duration)")
-			timeAddComment := timeAddCommand.String("comment", "", "Comment for the time entry (optional)")
-			configureFlagSet(timeAddCommand, "Add a manual time entry for a task. If -start is omitted, the start time is computed as now - duration.", "  worklog time add -task <short-uuid> -duration 30m\n  worklog time add -task <short-uuid> -duration 1h -start \"2023-08-14 09:00:00\"\n  worklog time add -task <short-uuid> -duration 3600s -comment \"Reviewed with team\"")
-			if err := timeAddCommand.Parse(timeArgs); err != nil {
-				return err
-			}
-
-			worklog, err := loadWorklog(*timeAddFile)
-			if err != nil {
-				return err
-			}
-
-			if *timeAddTask == "" {
-				return fmt.Errorf("-task flag is required for time add")
-			}
-			if *timeAddDuration == "" {
-				return fmt.Errorf("-duration flag is required for time add")
-			}
-
-			task, err := resolveTaskUUID(worklog, *timeAddTask)
-			if err != nil {
-				return err
-			}
-
-			duration, err := parseDurationFlag(*timeAddDuration)
-			if err != nil {
-				return err
-			}
-
-			var start time.Time
-			if *timeAddStart != "" {
-				start, err = parseTimeFlag(*timeAddStart)
-				if err != nil {
-					return err
-				}
-			}
-
-			var end time.Time
-			if !start.IsZero() {
-				end = start.Add(time.Duration(duration) * time.Second)
-			} else {
-				end = time.Now()
-				start = end.Add(-time.Duration(duration) * time.Second)
-			}
-
-			event := NewEvent(task.uuid, start, end, duration, task.name, *timeAddComment)
-			worklog.AddEvent(event)
-			if err := worklog.Save(*timeAddOutput); err != nil {
-				return err
-			}
-			fmt.Printf("Added %s time entry for '%s'.\n", time.Duration(duration*int(time.Second)).String(), task.name)
-		case "list":
-			timeListCommand := flag.NewFlagSet("time list", flag.ContinueOnError)
-			timeListFile := timeListCommand.String("file", "", "Path to .ics file (overrides WORKLOG_FILE)")
-			timeListTask := timeListCommand.String("task", "", "Filter to a specific task UUID (or short unique prefix) (optional)")
-			timeListFrom := timeListCommand.String("from", "", "Filter events starting on or after this date (YYYY-MM-DD)")
-			timeListTo := timeListCommand.String("to", "", "Filter events starting on or before this date (YYYY-MM-DD)")
-			timeListSearch := timeListCommand.String("search", "", "Filter by case-insensitive search in task name, description, or comment")
-			configureFlagSet(timeListCommand, "List time entries sorted by start time (most recent first).", "  worklog time list\n  worklog time list -task <short-uuid>\n  worklog time list -from 2023-08-01 -to 2023-08-15\n  worklog time list -search meeting")
-			if err := timeListCommand.Parse(timeArgs); err != nil {
-				return err
-			}
-
-			worklog, err := loadWorklog(*timeListFile)
-			if err != nil {
-				return err
-			}
-
-			var fromDay, toDay time.Time
-			if *timeListFrom != "" {
-				fromDay, err = parseDateFlag(*timeListFrom)
-				if err != nil {
-					return err
-				}
-			}
-			if *timeListTo != "" {
-				toDay, err = parseDateFlag(*timeListTo)
-				if err != nil {
-					return err
-				}
-			}
-			if !fromDay.IsZero() && !toDay.IsZero() && fromDay.After(toDay) {
-				return fmt.Errorf("from date must not be after to date")
-			}
-
-			events := worklog.GetEvents()
-			if *timeListTask != "" {
-				task, err := resolveTaskUUID(worklog, *timeListTask)
-				if err != nil {
-					return err
-				}
-				var filtered []*Event
-				for _, event := range events {
-					if event.relatedTo == task.uuid {
-						filtered = append(filtered, event)
-					}
-				}
-				events = filtered
-			}
-
-			var filtered []*Event
-			for _, event := range events {
-				// Date range filter
-				if !event.dtstart.IsZero() {
-					eventDay := time.Date(event.dtstart.Year(), event.dtstart.Month(), event.dtstart.Day(), 0, 0, 0, 0, event.dtstart.Location())
-					if !fromDay.IsZero() && eventDay.Before(fromDay) {
-						continue
-					}
-					if !toDay.IsZero() && eventDay.After(toDay) {
-						continue
-					}
-				} else if !fromDay.IsZero() || !toDay.IsZero() {
-					continue
-				}
-
-				// Search filter
-				if *timeListSearch != "" {
-					match := false
-					if task := worklog.FindTaskByUUID(event.relatedTo); task != nil {
-						if matchesSearch(task.name, *timeListSearch) || matchesSearch(task.description, *timeListSearch) {
-							match = true
-						}
-					}
-					if !match && matchesSearch(event.comment, *timeListSearch) {
-						match = true
-					}
-					if !match {
-						continue
-					}
-				}
-
-				filtered = append(filtered, event)
-			}
-			events = filtered
-
-			sort.Slice(events, func(i, j int) bool {
-				return events[i].dtstart.After(events[j].dtstart)
-			})
-
-			allEventUUIDs := worklog.allEventUUIDs()
-			shortEventUUIDs := shortUUIDs(allEventUUIDs)
-			maxShortLen := 4
-			for _, su := range shortEventUUIDs {
-				if len(su) > maxShortLen {
-					maxShortLen = len(su)
-				}
-			}
-
-			maxCommentLen := 7 // "Comment"
-			for _, event := range events {
-				truncated := truncate(event.comment, 30)
-				if len(truncated) > maxCommentLen {
-					maxCommentLen = len(truncated)
-				}
-			}
-
-			fmt.Printf("%-*s %-30s %-20s %-20s %-10s %-*s\n", maxShortLen, "UUID", "Task", "Start", "End", "Duration", maxCommentLen, "Comment")
-			for _, event := range events {
-				taskName := "(orphaned task)"
-				if task := worklog.FindTaskByUUID(event.relatedTo); task != nil {
-					taskName = task.name
-				}
-				startStr := "-"
-				if !event.dtstart.IsZero() {
-					startStr = event.dtstart.Format("2006-01-02 15:04:05")
-				}
-				endStr := "-"
-				if !event.dtend.IsZero() {
-					endStr = event.dtend.Format("2006-01-02 15:04:05")
-				}
-				durStr := time.Duration(event.duration * int(time.Second)).String()
-				comment := truncate(event.comment, 30)
-				fmt.Printf("%-*s %-30s %-20s %-20s %-10s %-*s\n", maxShortLen, shortEventUUIDs[event.uuid], taskName, startStr, endStr, durStr, maxCommentLen, comment)
-			}
-		case "edit":
-			timeEditCommand := flag.NewFlagSet("time edit", flag.ContinueOnError)
-			timeEditFile := timeEditCommand.String("file", "", "Path to .ics file (overrides WORKLOG_FILE)")
-			timeEditOutput := timeEditCommand.String("output", "", "Output path for the updated .ics file (defaults to input file)")
-			timeEditUUID := timeEditCommand.String("uuid", "", "UUID (or short unique prefix) of the time entry to edit (required)")
-			timeEditStart := timeEditCommand.String("start", "", "New start time")
-			timeEditEnd := timeEditCommand.String("end", "", "New end time")
-			timeEditDuration := timeEditCommand.String("duration", "", "New duration (e.g., 30m, 1h30m)")
-			timeEditComment := timeEditCommand.String("comment", "", "New comment")
-			configureFlagSet(timeEditCommand, "Edit an existing time entry. Only provided fields are changed. Duration is automatically recomputed when start or end is modified.", "  worklog time edit -uuid <short-uuid> -comment \"Updated\"\n  worklog time edit -uuid <short-uuid> -start \"2023-08-14 10:00:00\" -end \"2023-08-14 11:30:00\"")
-			if err := timeEditCommand.Parse(timeArgs); err != nil {
-				return err
-			}
-
-			worklog, err := loadWorklog(*timeEditFile)
-			if err != nil {
-				return err
-			}
-
-			if *timeEditUUID == "" {
-				return fmt.Errorf("-uuid flag is required for time edit")
-			}
-
-			update := EventUpdate{}
-			timeEditCommand.Visit(func(f *flag.Flag) {
-				switch f.Name {
-				case "comment":
-					update.Comment = timeEditComment
-				}
-			})
-
-			if *timeEditStart != "" {
-				t, err := parseTimeFlag(*timeEditStart)
-				if err != nil {
-					return err
-				}
-				update.Dtstart = &t
-			}
-			if *timeEditEnd != "" {
-				t, err := parseTimeFlag(*timeEditEnd)
-				if err != nil {
-					return err
-				}
-				update.Dtend = &t
-			}
-			if *timeEditDuration != "" {
-				d, err := parseDurationFlag(*timeEditDuration)
-				if err != nil {
-					return err
-				}
-				update.Duration = &d
-			}
-
-			event, err := resolveEventUUID(worklog, *timeEditUUID)
-			if err != nil {
-				return err
-			}
-			if err := worklog.UpdateEvent(event.uuid, update); err != nil {
-				return err
-			}
-			if err := worklog.Save(*timeEditOutput); err != nil {
-				return err
-			}
-			fmt.Println("Time entry updated.")
-		case "delete":
-			timeDeleteCommand := flag.NewFlagSet("time delete", flag.ContinueOnError)
-			timeDeleteFile := timeDeleteCommand.String("file", "", "Path to .ics file (overrides WORKLOG_FILE)")
-			timeDeleteOutput := timeDeleteCommand.String("output", "", "Output path for the updated .ics file (defaults to input file)")
-			timeDeleteUUID := timeDeleteCommand.String("uuid", "", "UUID (or short unique prefix) of the time entry to delete (required)")
-			timeDeleteForce := timeDeleteCommand.Bool("force", false, "Delete without confirmation")
-			configureFlagSet(timeDeleteCommand, "Delete a time entry.", "  worklog time delete -uuid <short-uuid>\n  worklog time delete -uuid <short-uuid> -force")
-			if err := timeDeleteCommand.Parse(timeArgs); err != nil {
-				return err
-			}
-
-			worklog, err := loadWorklog(*timeDeleteFile)
-			if err != nil {
-				return err
-			}
-
-			if *timeDeleteUUID == "" {
-				return fmt.Errorf("-uuid flag is required for time delete")
-			}
-
-			event, err := resolveEventUUID(worklog, *timeDeleteUUID)
-			if err != nil {
-				return err
-			}
-
-			if !*timeDeleteForce {
-				taskName := "(orphaned task)"
-				if task := worklog.FindTaskByUUID(event.relatedTo); task != nil {
-					taskName = task.name
-				}
-				fmt.Printf("Delete time entry for '%s' (%s)? [y/N] ", taskName, time.Duration(event.duration*int(time.Second)).String())
-				var response string
-				if _, err := fmt.Scanln(&response); err != nil {
-					return fmt.Errorf("failed to read confirmation: %w", err)
-				}
-				if strings.ToLower(strings.TrimSpace(response)) != "y" {
-					fmt.Println("Deletion cancelled.")
-					return nil
-				}
-			}
-
-			if err := worklog.DeleteEvent(event.uuid); err != nil {
-				return err
-			}
-			if err := worklog.Save(*timeDeleteOutput); err != nil {
-				return err
-			}
-			fmt.Println("Time entry deleted.")
-		default:
-			return fmt.Errorf("unknown time subcommand '%s'", timeSubcommand)
-		}
-	case "jira":
-		return runJira(args[1:])
-	case "config":
-		return runConfig(args[1:])
-	case "init":
-		return runInit(args[1:])
-	case "report":
-		if len(args) < 2 {
-			printReportUsage()
-			return fmt.Errorf("no report subcommand provided")
-		}
-		if isHelpFlag(args[1]) {
-			printReportUsage()
-			return flag.ErrHelp
-		}
-		reportSubcommand := args[1]
-		reportArgs := args[2:]
-
-		switch reportSubcommand {
-		case "timesheet":
-			timesheetCommand := flag.NewFlagSet("report timesheet", flag.ContinueOnError)
-			timesheetFile := timesheetCommand.String("file", "", "Path to .ics file (overrides WORKLOG_FILE)")
-			timesheetFrom := timesheetCommand.String("from", "", "Start date (YYYY-MM-DD, defaults to Monday of current week)")
-			timesheetTo := timesheetCommand.String("to", "", "End date (YYYY-MM-DD, defaults to Sunday of current week)")
-			timesheetFormat := timesheetCommand.String("format", "table", "Output format: table or csv")
-			timesheetDecimal := timesheetCommand.Bool("decimal", false, "Display hours in decimal format (e.g., 1.50)")
-			timesheetAll := timesheetCommand.Bool("all", false, "Use the full date range of all events")
-			timesheetHideEmpty := timesheetCommand.Bool("hide-empty", false, "Hide days with no time entries")
-			configureFlagSet(timesheetCommand, "Generate a timesheet showing time logged per task per day. Defaults to the current week (Monday–Sunday).", "  worklog report timesheet\n  worklog report timesheet -from 2023-08-01 -to 2023-08-15\n  worklog report timesheet -format csv -decimal\n  worklog report timesheet -all -hide-empty")
-			if err := timesheetCommand.Parse(reportArgs); err != nil {
-				return err
-			}
-
-			worklog, err := loadWorklog(*timesheetFile)
-			if err != nil {
-				return err
-			}
-
-			isDefaultRange := true
-			from, to := currentWeekRange(time.Now())
-
-			if *timesheetAll {
-				isDefaultRange = false
-				min, max := eventDateRange(worklog)
-				if !min.IsZero() {
-					from = min
-				}
-				if !max.IsZero() {
-					to = max
-				}
-			}
-			if *timesheetFrom != "" {
-				isDefaultRange = false
-				parsed, err := parseDateFlag(*timesheetFrom)
-				if err != nil {
-					return err
-				}
-				from = parsed
-			}
-			if *timesheetTo != "" {
-				isDefaultRange = false
-				parsed, err := parseDateFlag(*timesheetTo)
-				if err != nil {
-					return err
-				}
-				to = parsed
-			}
-			if from.After(to) {
-				return fmt.Errorf("from date must not be after to date")
-			}
-
-			ts := generateTimesheet(worklog, from, to)
-			if *timesheetHideEmpty {
-				ts = hideEmptyColumns(ts)
-			}
-
-			if len(ts.rows) == 0 {
-				fmt.Println("No time entries in the selected date range.")
-				if isDefaultRange {
-					fmt.Println("Use --all to see all data, or specify --from and --to.")
-				}
-				return nil
-			}
-
-			switch *timesheetFormat {
-			case "table":
-				printTimesheetTable(os.Stdout, ts, *timesheetDecimal)
-			case "csv":
-				printTimesheetCSV(os.Stdout, ts, *timesheetDecimal)
-			default:
-				return fmt.Errorf("unknown format '%s', use 'table' or 'csv'", *timesheetFormat)
-			}
-		default:
-			return fmt.Errorf("unknown report subcommand '%s'", reportSubcommand)
-		}
-	default:
+	handler, ok := commands[args[0]]
+	if !ok {
 		return fmt.Errorf("unknown command '%s'", args[0])
 	}
-	return nil
+	return handler(args[1:])
 }
 
 func runTask(args []string) error {
@@ -547,18 +151,18 @@ func runTask(args []string) error {
 		return flag.ErrHelp
 	}
 
-	switch args[0] {
-	case "list":
-		return runTaskList(args[1:])
-	case "create":
-		return runTaskCreate(args[1:])
-	case "update":
-		return runTaskUpdate(args[1:])
-	case "delete":
-		return runTaskDelete(args[1:])
-	default:
+	commands := map[string]func([]string) error{
+		"list":   runTaskList,
+		"create": runTaskCreate,
+		"update": runTaskUpdate,
+		"delete": runTaskDelete,
+	}
+
+	handler, ok := commands[args[0]]
+	if !ok {
 		return fmt.Errorf("unknown task subcommand '%s'", args[0])
 	}
+	return handler(args[1:])
 }
 
 func runTaskList(args []string) error {
@@ -949,17 +553,22 @@ func runConfig(args []string) error {
 		return flag.ErrHelp
 	}
 
-	switch args[0] {
-	case "path":
-		fmt.Println(configPath())
-		return nil
-	case "get":
-		return runConfigGet(args[1:])
-	case "set":
-		return runConfigSet(args[1:])
-	default:
+	commands := map[string]func([]string) error{
+		"path": runConfigPath,
+		"get":  runConfigGet,
+		"set":  runConfigSet,
+	}
+
+	handler, ok := commands[args[0]]
+	if !ok {
 		return fmt.Errorf("unknown config subcommand '%s'", args[0])
 	}
+	return handler(args[1:])
+}
+
+func runConfigPath(args []string) error {
+	fmt.Println(configPath())
+	return nil
 }
 
 func runConfigGet(args []string) error {
