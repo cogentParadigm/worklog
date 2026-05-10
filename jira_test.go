@@ -801,7 +801,7 @@ func TestCollectAllTasks(t *testing.T) {
 	grandchild1.parent = child1
 
 	tasks := []*Task{root1, root2}
-	all := collectAllTasks(tasks)
+	all := flattenTasks(tasks)
 
 	if len(all) != 4 {
 		t.Fatalf("expected 4 tasks, got %d", len(all))

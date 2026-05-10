@@ -53,15 +53,6 @@ func runJira(args []string) error {
 	}
 }
 
-func collectAllTasks(tasks []*Task) []*Task {
-	var result []*Task
-	for _, task := range tasks {
-		result = append(result, task)
-		result = append(result, collectAllTasks(task.children)...)
-	}
-	return result
-}
-
 func runJiraResolve(args []string) error {
 	resolveCommand := flag.NewFlagSet("jira resolve", flag.ContinueOnError)
 	resolveFile := resolveCommand.String("file", "", "Path to .ics file (overrides WORKLOG_FILE)")
@@ -102,7 +93,7 @@ func runJiraResolve(args []string) error {
 		}
 		tasks = []*Task{task}
 	} else {
-		tasks = collectAllTasks(worklog.tasks)
+		tasks = flattenTasks(worklog.tasks)
 	}
 
 	resolved := 0

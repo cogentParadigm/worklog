@@ -3,8 +3,6 @@
 This document tracks known issues identified during code review.
 
 
-- **`collectAllTasks` duplicates `flattenTasks`**: `cmd_jira.go:56-63` is identical in behavior to `task.go:105-112`. Remove the dead duplication.
-
 - **Config `Get` / `GetUnmasked` duplication**: `config.go:110-164` has two near-identical 30-line switch statements. Any new key requires editing both. Have `Get` delegate to `GetUnmasked` and mask after, or use a struct tag/reflection approach.
 
 - **`resolveTaskUUID` and `resolveEventUUID` are ~90% identical**: `uuid.go:53-133` — same exact-match, prefix-scan, and ambiguous-reporting logic. Extract a generic `resolveByPrefix` helper.
