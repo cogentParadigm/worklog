@@ -21,6 +21,10 @@ type Event struct {
 	properties  []ics.IANAProperty
 }
 
+func (event *Event) getUUID() string {
+	return event.uuid
+}
+
 func NewEvent(taskUUID string, start, end time.Time, duration int, note, comment string) *Event {
 	now := time.Now().UTC()
 	return &Event{

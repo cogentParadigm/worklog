@@ -3,8 +3,6 @@
 This document tracks known issues identified during code review.
 
 
-- **`resolveTaskUUID` and `resolveEventUUID` are ~90% identical**: `uuid.go:53-133` — same exact-match, prefix-scan, and ambiguous-reporting logic. Extract a generic `resolveByPrefix` helper.
-
 - **Property manipulation methods repeat the same pattern**: `jira.go` and `event.go` contain ~10 methods (`SetIssueID`, `ClearIssueID`, `SetSyncedAt`, `SetTempoAttribute`, etc.) that all loop over `properties`, match by `IANAToken`, then update/delete/append. Add generic helpers: `setProperty`, `getProperty`, `removeProperty`.
 
 - **`buildSidecar` reimplements `IssueKey()` logic**: `sidecar.go:95-99` manually scans `task.properties` for `X-WORKLOG-ISSUE-KEY` instead of calling `task.IssueKey()`.
@@ -27,4 +25,4 @@ This document tracks known issues identified during code review.
 
 ---
 
-*Last reviewed: 2026-05-09*
+*Last reviewed: 2026-05-09* 

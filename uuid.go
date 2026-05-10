@@ -48,86 +48,69 @@ func shortUUIDs(uuids []string) map[string]string {
 	return result
 }
 
-// resolveTaskUUID finds a task by full or short UUID prefix.
-// It tries exact match first, then prefix match against all tasks.
-func resolveTaskUUID(worklog *Worklog, prefix string) (*Task, error) {
+type uuided interface {
+	getUUID() string
+}
+
+func resolveByPrefix[T uuided](prefix string, exact func(string) (T, bool), all []T, itemName string, itemNamePlural string, describe func(T) string) (T, error) {
+	var zero T
 	if prefix == "" {
-		return nil, fmt.Errorf("task UUID is empty")
+		return zero, fmt.Errorf("%s UUID is empty", itemName)
 	}
 
-	// Exact match
-	if task := worklog.FindTaskByUUID(prefix); task != nil {
-		return task, nil
+	if item, ok := exact(prefix); ok {
+		return item, nil
 	}
 
-	// Collect all UUIDs for short formatting and prefix matching
-	allTasks := flattenTasks(worklog.tasks)
-	var matches []*Task
-	for _, task := range allTasks {
-		if strings.HasPrefix(task.uuid, prefix) {
-			matches = append(matches, task)
+	allUUIDs := make([]string, len(all))
+	for i, item := range all {
+		allUUIDs[i] = item.getUUID()
+	}
+
+	var matches []T
+	for _, item := range all {
+		if strings.HasPrefix(item.getUUID(), prefix) {
+			matches = append(matches, item)
 		}
 	}
 
 	if len(matches) == 0 {
-		return nil, fmt.Errorf("task with UUID '%s' not found", prefix)
+		return zero, fmt.Errorf("%s with UUID '%s' not found", itemName, prefix)
 	}
 	if len(matches) == 1 {
 		return matches[0], nil
 	}
 
-	// Ambiguous: list candidates
-	allUUIDs := make([]string, len(allTasks))
-	for i, task := range allTasks {
-		allUUIDs[i] = task.uuid
-	}
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("UUID prefix '%s' is ambiguous; matches %d tasks:\n", prefix, len(matches)))
-	for _, task := range matches {
-		sb.WriteString(fmt.Sprintf("  %s - %s\n", shortUUID(task.uuid, allUUIDs), task.name))
+	sb.WriteString(fmt.Sprintf("UUID prefix '%s' is ambiguous; matches %d %s:\n", prefix, len(matches), itemNamePlural))
+	for _, item := range matches {
+		sb.WriteString(fmt.Sprintf("  %s - %s\n", shortUUID(item.getUUID(), allUUIDs), describe(item)))
 	}
-	return nil, fmt.Errorf(sb.String())
+	return zero, fmt.Errorf(sb.String())
+}
+
+// resolveTaskUUID finds a task by full or short UUID prefix.
+// It tries exact match first, then prefix match against all tasks.
+func resolveTaskUUID(worklog *Worklog, prefix string) (*Task, error) {
+	allTasks := flattenTasks(worklog.tasks)
+	return resolveByPrefix(prefix, func(p string) (*Task, bool) {
+		t := worklog.FindTaskByUUID(p)
+		return t, t != nil
+	}, allTasks, "task", "tasks", func(t *Task) string {
+		return t.name
+	})
 }
 
 // resolveEventUUID finds an event by full or short UUID prefix.
 // It tries exact match first, then prefix match against all events.
 func resolveEventUUID(worklog *Worklog, prefix string) (*Event, error) {
-	if prefix == "" {
-		return nil, fmt.Errorf("time entry UUID is empty")
-	}
-
-	// Exact match
-	if event := worklog.FindEventByUUID(prefix); event != nil {
-		return event, nil
-	}
-
-	var matches []*Event
-	for _, event := range worklog.events {
-		if strings.HasPrefix(event.uuid, prefix) {
-			matches = append(matches, event)
+	return resolveByPrefix(prefix, func(p string) (*Event, bool) {
+		e := worklog.FindEventByUUID(p)
+		return e, e != nil
+	}, worklog.events, "time entry", "time entries", func(e *Event) string {
+		if task := worklog.FindTaskByUUID(e.relatedTo); task != nil {
+			return task.name
 		}
-	}
-
-	if len(matches) == 0 {
-		return nil, fmt.Errorf("time entry with UUID '%s' not found", prefix)
-	}
-	if len(matches) == 1 {
-		return matches[0], nil
-	}
-
-	// Ambiguous: list candidates
-	allUUIDs := make([]string, len(worklog.events))
-	for i, event := range worklog.events {
-		allUUIDs[i] = event.uuid
-	}
-	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("UUID prefix '%s' is ambiguous; matches %d time entries:\n", prefix, len(matches)))
-	for _, event := range matches {
-		taskName := "(orphaned task)"
-		if task := worklog.FindTaskByUUID(event.relatedTo); task != nil {
-			taskName = task.name
-		}
-		sb.WriteString(fmt.Sprintf("  %s - %s\n", shortUUID(event.uuid, allUUIDs), taskName))
-	}
-	return nil, fmt.Errorf(sb.String())
+		return "(orphaned task)"
+	})
 }

@@ -17,6 +17,10 @@ type Task struct {
 	position    int
 }
 
+func (task *Task) getUUID() string {
+	return task.uuid
+}
+
 // ---------------------------------------------------------
 // convert between Task and ics.VTodo
 // ---------------------------------------------------------
