@@ -3,8 +3,6 @@
 This document tracks known issues identified during code review.
 
 
-- **Dead debug code in `ical.go`**: `getProperties()` and `getSummaries()` (lines 83-95) are debug helpers with `fmt.Printf`, never called in production or tests.
-
 - **Date range filtering is copy-pasted in 3+ places**: `main.go:250-262` (time list), `cmd_jira.go:516-543` (findSkippedTasks), and `cmd_jira.go:573-624` (buildSyncEntries) all iterate events, check `dtstart.IsZero()`, strip to day, and compare `fromDay`/`toDay`. Extract a shared helper.
 
 - **`TaskUpdate` pointer fields add noise**: `worklog.go:119-123` uses `*string` fields to distinguish "not provided" from "set to empty", forcing callers to use `strPtr()` everywhere. Consider a small builder or explicit flags.
