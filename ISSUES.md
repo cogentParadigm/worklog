@@ -3,8 +3,6 @@
 This document tracks known issues identified during code review.
 
 
-- **`cmd_jira.go` mixed concerns**: `runJiraSync` alone is ~300 lines mixing CLI parsing, API client setup, data aggregation, preview formatting, user confirmation, and API calls. `buildTimesheetFromSyncEntries` also duplicates day-range and row-building logic already in `generateTimesheet`. Split into dedicated phases and reuse the existing timesheet generator for previews.
-
 - **`collectAllTasks` duplicates `flattenTasks`**: `cmd_jira.go:56-63` is identical in behavior to `task.go:105-112`. Remove the dead duplication.
 
 - **Config `Get` / `GetUnmasked` duplication**: `config.go:110-164` has two near-identical 30-line switch statements. Any new key requires editing both. Have `Get` delegate to `GetUnmasked` and mask after, or use a struct tag/reflection approach.

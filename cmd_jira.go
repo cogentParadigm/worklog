@@ -241,140 +241,13 @@ func runJiraSync(args []string) error {
 		return nil
 	}
 
-	mergedAttrs := make([]map[string]string, len(entries))
-	allAttrKeys := make(map[string]bool)
-	for i, e := range entries {
-		attrs := mergedTempoAttributes(cfg, e.task)
-		mergedAttrs[i] = attrs
-		for k := range attrs {
-			allAttrKeys[k] = true
-		}
-	}
-	var attrKeys []string
-	for k := range allAttrKeys {
-		attrKeys = append(attrKeys, k)
-	}
-	sort.Strings(attrKeys)
-	attrLabels := buildHumanizedAttrKeys(attrKeys)
-
 	if *syncFormat == "timesheet" {
-		ts := buildTimesheetFromSyncEntries(entries, fromDay, toDay)
-		ts.shortUUIDs = shortTaskUUIDs
-		ts.defaultAttrs = cfg.Tempo.Attributes
-		for i := range ts.rows {
-			ts.rows[i].attributes = mergedTempoAttributes(cfg, ts.rows[i].task)
-		}
-		if *syncHideEmpty {
-			ts = hideEmptyColumns(ts)
-		}
-		printTimesheetTable(os.Stdout, ts, *syncDecimal)
+		renderTimesheetPreview(os.Stdout, entries, fromDay, toDay, cfg, shortTaskUUIDs, *syncHideEmpty, *syncDecimal)
 	} else {
-		maxShortLen := 4
-		for _, su := range shortTaskUUIDs {
-			if len(su) > maxShortLen {
-				maxShortLen = len(su)
-			}
-		}
-
-		colNames := []string{"UUID", "Task", "Issue Key", "Date", "Duration", "Comment"}
-		colWidths := []int{maxShortLen, 30, 12, 10, 8, 30}
-		for _, label := range attrLabels {
-			colNames = append(colNames, label)
-			colWidths = append(colWidths, len(label))
-		}
-
-		for i, e := range entries {
-			if len(shortTaskUUIDs[e.task.uuid]) > colWidths[0] {
-				colWidths[0] = len(shortTaskUUIDs[e.task.uuid])
-			}
-			if len(e.issueKey) > colWidths[2] {
-				colWidths[2] = len(e.issueKey)
-			}
-			durStr := formatDuration(e.duration)
-			if len(durStr) > colWidths[4] {
-				colWidths[4] = len(durStr)
-			}
-			for j, k := range attrKeys {
-				val := ""
-				if v, ok := mergedAttrs[i][k]; ok {
-					if cfg.Tempo.Attributes[k] != v {
-						val = humanizeLabel(v)
-					}
-				}
-				if len(val) > colWidths[6+j] {
-					colWidths[6+j] = len(val)
-				}
-			}
-		}
-
-		for i, name := range colNames {
-			if i == 0 {
-				fmt.Printf("%-*s", colWidths[i], name)
-			} else {
-				fmt.Printf(" %-*s", colWidths[i], name)
-			}
-		}
-		fmt.Println()
-
-		totalWidth := 0
-		for i, w := range colWidths {
-			if i > 0 {
-				totalWidth++
-			}
-			totalWidth += w
-		}
-		fmt.Println(strings.Repeat("-", totalWidth))
-
-		for i, e := range entries {
-			durStr := formatDuration(e.duration)
-			dateStr := e.start.Format("2006-01-02")
-			name := truncate(e.task.name, 30)
-			comment := truncate(e.comment, 30)
-			cells := []string{
-				shortTaskUUIDs[e.task.uuid],
-				name,
-				e.issueKey,
-				dateStr,
-				durStr,
-				comment,
-			}
-			for _, k := range attrKeys {
-				val := ""
-				if v, ok := mergedAttrs[i][k]; ok {
-					if cfg.Tempo.Attributes[k] != v {
-						val = humanizeLabel(v)
-					}
-				}
-				cells = append(cells, val)
-			}
-			for j, cell := range cells {
-				if j == 0 {
-					fmt.Printf("%-*s", colWidths[j], cell)
-				} else {
-					fmt.Printf(" %-*s", colWidths[j], cell)
-				}
-			}
-			fmt.Println()
-		}
-
-		fmt.Println(strings.Repeat("-", totalWidth))
+		renderListPreview(os.Stdout, entries, cfg, shortTaskUUIDs)
 	}
 
-	if len(cfg.Tempo.Attributes) > 0 {
-		parts := make([]string, 0, len(cfg.Tempo.Attributes))
-		for k, v := range cfg.Tempo.Attributes {
-			parts = append(parts, fmt.Sprintf("%s=%s", humanizeLabel(k), humanizeLabel(v)))
-		}
-		sort.Strings(parts)
-		fmt.Printf("Default Tempo attributes: %s\n", strings.Join(parts, ", "))
-	}
-	fmt.Printf("Total: %d worklog(s) to send.\n", len(entries))
-
-	if len(skipped) > 0 {
-		fmt.Println("")
-		fmt.Println("Skipped tasks (no issue key):")
-		printSkippedTasks(os.Stdout, skipped, shortTaskUUIDs)
-	}
+	renderPreviewFooter(os.Stdout, entries, skipped, cfg, shortTaskUUIDs)
 
 	if *syncDryRun {
 		fmt.Println("Dry run complete. No entries were sent.")
@@ -393,55 +266,8 @@ func runJiraSync(args []string) error {
 		}
 	}
 
-	// Pre-fetch remaining estimates from Jira so Tempo doesn't require us to
-	// auto-reduce them. We only fetch for unique issue keys to limit API calls.
-	remainingEstimates := make(map[string]int)
-	if jiraClient != nil {
-		uniqueKeys := make(map[string]bool)
-		for _, e := range entries {
-			uniqueKeys[e.issueKey] = true
-		}
-		for key := range uniqueKeys {
-			seconds, err := jiraClient.GetRemainingEstimate(key)
-			if err != nil {
-				return fmt.Errorf("fetch remaining estimate for %s: %w", key, err)
-			}
-			remainingEstimates[key] = seconds
-		}
-	}
-
-	for _, e := range entries {
-		issueID := e.task.IssueID()
-		if issueID == "" {
-			if jiraClient == nil {
-				return fmt.Errorf("jira.base_url, jira.username, and jira.token required to resolve issue key %s", e.issueKey)
-			}
-			id, err := jiraClient.GetIssueID(e.issueKey)
-			if err != nil {
-				return fmt.Errorf("resolve issue key %s: %w", e.issueKey, err)
-			}
-			e.task.SetIssueID(id)
-			issueID = id
-		}
-		attrs := mergedTempoAttributes(cfg, e.task)
-		wl := tempo.Worklog{
-			IssueId:          issueID,
-			TimeSpentSeconds: e.duration,
-			StartDate:        e.start.Format("2006-01-02"),
-			StartTime:        e.start.Format("15:04:05"),
-			Description:      e.comment,
-			Attributes:       attrs,
-		}
-		if est, ok := remainingEstimates[e.issueKey]; ok {
-			wl.RemainingEstimateSeconds = &est
-		}
-		if err := client.CreateWorklog(wl); err != nil {
-			return fmt.Errorf("send worklog for '%s' (%s): %w", e.task.name, e.issueKey, err)
-		}
-		now := time.Now()
-		for _, event := range e.events {
-			event.SetSyncedAt(now)
-		}
+	if err := sendWorklogs(entries, client, jiraClient, cfg); err != nil {
+		return err
 	}
 
 	if err := worklog.Save(*syncOutput); err != nil {
@@ -683,18 +509,8 @@ func buildTimesheetFromSyncEntries(entries []syncEntry, from, to time.Time) *Tim
 		maxDay = to
 	}
 
-	var days []time.Time
-	day := minDay
-	endDay := maxDay
-	for !day.After(endDay) {
-		days = append(days, day)
-		day = day.AddDate(0, 0, 1)
-	}
-
-	dayIndex := make(map[string]int)
-	for i, d := range days {
-		dayIndex[d.Format("2006-01-02")] = i
-	}
+	days := buildDayRange(minDay, maxDay)
+	dayIndex := buildDayIndex(days)
 
 	taskDurations := make(map[string][]int)
 	taskMap := make(map[string]*Task)
@@ -816,6 +632,199 @@ func buildHumanizedAttrKeys(attrKeys []string) []string {
 		labels[i] = label
 	}
 	return labels
+}
+
+func renderTimesheetPreview(w io.Writer, entries []syncEntry, fromDay, toDay time.Time, cfg *Config, shortTaskUUIDs map[string]string, hideEmpty bool, decimal bool) {
+	ts := buildTimesheetFromSyncEntries(entries, fromDay, toDay)
+	ts.shortUUIDs = shortTaskUUIDs
+	ts.defaultAttrs = cfg.Tempo.Attributes
+	for i := range ts.rows {
+		ts.rows[i].attributes = mergedTempoAttributes(cfg, ts.rows[i].task)
+	}
+	if hideEmpty {
+		ts = hideEmptyColumns(ts)
+	}
+	printTimesheetTable(w, ts, decimal)
+}
+
+func renderListPreview(w io.Writer, entries []syncEntry, cfg *Config, shortTaskUUIDs map[string]string) {
+	mergedAttrs := make([]map[string]string, len(entries))
+	allAttrKeys := make(map[string]bool)
+	for i, e := range entries {
+		attrs := mergedTempoAttributes(cfg, e.task)
+		mergedAttrs[i] = attrs
+		for k := range attrs {
+			allAttrKeys[k] = true
+		}
+	}
+	var attrKeys []string
+	for k := range allAttrKeys {
+		attrKeys = append(attrKeys, k)
+	}
+	sort.Strings(attrKeys)
+	attrLabels := buildHumanizedAttrKeys(attrKeys)
+
+	maxShortLen := 4
+	for _, su := range shortTaskUUIDs {
+		if len(su) > maxShortLen {
+			maxShortLen = len(su)
+		}
+	}
+
+	colNames := []string{"UUID", "Task", "Issue Key", "Date", "Duration", "Comment"}
+	colWidths := []int{maxShortLen, 30, 12, 10, 8, 30}
+	for _, label := range attrLabels {
+		colNames = append(colNames, label)
+		colWidths = append(colWidths, len(label))
+	}
+
+	for i, e := range entries {
+		if len(shortTaskUUIDs[e.task.uuid]) > colWidths[0] {
+			colWidths[0] = len(shortTaskUUIDs[e.task.uuid])
+		}
+		if len(e.issueKey) > colWidths[2] {
+			colWidths[2] = len(e.issueKey)
+		}
+		durStr := formatDuration(e.duration)
+		if len(durStr) > colWidths[4] {
+			colWidths[4] = len(durStr)
+		}
+		for j, k := range attrKeys {
+			val := ""
+			if v, ok := mergedAttrs[i][k]; ok {
+				if cfg.Tempo.Attributes[k] != v {
+					val = humanizeLabel(v)
+				}
+			}
+			if len(val) > colWidths[6+j] {
+				colWidths[6+j] = len(val)
+			}
+		}
+	}
+
+	for i, name := range colNames {
+		if i == 0 {
+			fmt.Fprintf(w, "%-*s", colWidths[i], name)
+		} else {
+			fmt.Fprintf(w, " %-*s", colWidths[i], name)
+		}
+	}
+	fmt.Fprintln(w)
+
+	totalWidth := 0
+	for i, w := range colWidths {
+		if i > 0 {
+			totalWidth++
+		}
+		totalWidth += w
+	}
+	fmt.Fprintln(w, strings.Repeat("-", totalWidth))
+
+	for i, e := range entries {
+		durStr := formatDuration(e.duration)
+		dateStr := e.start.Format("2006-01-02")
+		name := truncate(e.task.name, 30)
+		comment := truncate(e.comment, 30)
+		cells := []string{
+			shortTaskUUIDs[e.task.uuid],
+			name,
+			e.issueKey,
+			dateStr,
+			durStr,
+			comment,
+		}
+		for _, k := range attrKeys {
+			val := ""
+			if v, ok := mergedAttrs[i][k]; ok {
+				if cfg.Tempo.Attributes[k] != v {
+					val = humanizeLabel(v)
+				}
+			}
+			cells = append(cells, val)
+		}
+		for j, cell := range cells {
+			if j == 0 {
+				fmt.Fprintf(w, "%-*s", colWidths[j], cell)
+			} else {
+				fmt.Fprintf(w, " %-*s", colWidths[j], cell)
+			}
+		}
+		fmt.Fprintln(w)
+	}
+
+	fmt.Fprintln(w, strings.Repeat("-", totalWidth))
+}
+
+func renderPreviewFooter(w io.Writer, entries []syncEntry, skipped []skippedTask, cfg *Config, shortTaskUUIDs map[string]string) {
+	if len(cfg.Tempo.Attributes) > 0 {
+		parts := make([]string, 0, len(cfg.Tempo.Attributes))
+		for k, v := range cfg.Tempo.Attributes {
+			parts = append(parts, fmt.Sprintf("%s=%s", humanizeLabel(k), humanizeLabel(v)))
+		}
+		sort.Strings(parts)
+		fmt.Fprintf(w, "Default Tempo attributes: %s\n", strings.Join(parts, ", "))
+	}
+	fmt.Fprintf(w, "Total: %d worklog(s) to send.\n", len(entries))
+
+	if len(skipped) > 0 {
+		fmt.Fprintln(w, "")
+		fmt.Fprintln(w, "Skipped tasks (no issue key):")
+		printSkippedTasks(w, skipped, shortTaskUUIDs)
+	}
+}
+
+func sendWorklogs(entries []syncEntry, client *tempo.Client, jiraClient *jira.Client, cfg *Config) error {
+	// Pre-fetch remaining estimates from Jira so Tempo doesn't require us to
+	// auto-reduce them. We only fetch for unique issue keys to limit API calls.
+	remainingEstimates := make(map[string]int)
+	if jiraClient != nil {
+		uniqueKeys := make(map[string]bool)
+		for _, e := range entries {
+			uniqueKeys[e.issueKey] = true
+		}
+		for key := range uniqueKeys {
+			seconds, err := jiraClient.GetRemainingEstimate(key)
+			if err != nil {
+				return fmt.Errorf("fetch remaining estimate for %s: %w", key, err)
+			}
+			remainingEstimates[key] = seconds
+		}
+	}
+
+	for _, e := range entries {
+		issueID := e.task.IssueID()
+		if issueID == "" {
+			if jiraClient == nil {
+				return fmt.Errorf("jira.base_url, jira.username, and jira.token required to resolve issue key %s", e.issueKey)
+			}
+			id, err := jiraClient.GetIssueID(e.issueKey)
+			if err != nil {
+				return fmt.Errorf("resolve issue key %s: %w", e.issueKey, err)
+			}
+			e.task.SetIssueID(id)
+			issueID = id
+		}
+		attrs := mergedTempoAttributes(cfg, e.task)
+		wl := tempo.Worklog{
+			IssueId:          issueID,
+			TimeSpentSeconds: e.duration,
+			StartDate:        e.start.Format("2006-01-02"),
+			StartTime:        e.start.Format("15:04:05"),
+			Description:      e.comment,
+			Attributes:       attrs,
+		}
+		if est, ok := remainingEstimates[e.issueKey]; ok {
+			wl.RemainingEstimateSeconds = &est
+		}
+		if err := client.CreateWorklog(wl); err != nil {
+			return fmt.Errorf("send worklog for '%s' (%s): %w", e.task.name, e.issueKey, err)
+		}
+		now := time.Now()
+		for _, event := range e.events {
+			event.SetSyncedAt(now)
+		}
+	}
+	return nil
 }
 
 func mergedTempoAttributes(cfg *Config, task *Task) map[string]string {

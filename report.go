@@ -108,8 +108,7 @@ func parseDateFlag(value string) (time.Time, error) {
 	return t, nil
 }
 
-func generateTimesheet(worklog *Worklog, from, to time.Time) *Timesheet {
-	// Build list of days in range
+func buildDayRange(from, to time.Time) []time.Time {
 	var days []time.Time
 	day := time.Date(from.Year(), from.Month(), from.Day(), 0, 0, 0, 0, from.Location())
 	endDay := time.Date(to.Year(), to.Month(), to.Day(), 0, 0, 0, 0, to.Location())
@@ -117,12 +116,19 @@ func generateTimesheet(worklog *Worklog, from, to time.Time) *Timesheet {
 		days = append(days, day)
 		day = day.AddDate(0, 0, 1)
 	}
+	return days
+}
 
-	// Map day -> index
+func buildDayIndex(days []time.Time) map[string]int {
 	dayIndex := make(map[string]int)
 	for i, d := range days {
 		dayIndex[d.Format("2006-01-02")] = i
 	}
+	return dayIndex
+}
+
+func generateTimesheet(worklog *Worklog, from, to time.Time) *Timesheet {
+	days := buildDayRange(from, to)
 
 	// Collect events per task per day
 	type taskDayKey struct {
