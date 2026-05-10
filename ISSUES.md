@@ -3,8 +3,6 @@
 This document tracks known issues identified during code review.
 
 
-- **`printTimesheetTable` is ~200 lines of dense formatting logic**: `report.go:212-375` computes column widths, builds headers, prints separators, and renders rows all in one function.
-
 - **Dead debug code in `ical.go`**: `getProperties()` and `getSummaries()` (lines 83-95) are debug helpers with `fmt.Printf`, never called in production or tests.
 
 - **Date range filtering is copy-pasted in 3+ places**: `main.go:250-262` (time list), `cmd_jira.go:516-543` (findSkippedTasks), and `cmd_jira.go:573-624` (buildSyncEntries) all iterate events, check `dtstart.IsZero()`, strip to day, and compare `fromDay`/`toDay`. Extract a shared helper.
