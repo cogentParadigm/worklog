@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"flag"
 	"fmt"
 	"io"
@@ -20,6 +22,7 @@ type syncEntry struct {
 	duration int
 	comment  string
 	events   []*Event
+	syncHash string
 }
 
 func printJiraUsage() {
@@ -213,7 +216,7 @@ func runJiraSync(args []string) error {
 		syncTaskUUID = task.uuid
 	}
 
-	entries, err := buildSyncEntries(worklog, syncTaskUUID, fromDay, toDay, roundingSteps)
+	entries, err := buildSyncEntries(worklog, syncTaskUUID, fromDay, toDay, roundingSteps, cfg)
 	if err != nil {
 		return err
 	}
@@ -380,7 +383,22 @@ func printSkippedTasks(w io.Writer, skipped []skippedTask, shortUUIDs map[string
 	}
 }
 
-func buildSyncEntries(worklog *Worklog, taskUUID string, fromDay, toDay time.Time, roundingSteps []RoundingStep) ([]syncEntry, error) {
+func computeSyncHash(entry syncEntry, cfg *Config) string {
+	h := sha256.New()
+	fmt.Fprintf(h, "%s\n%s\n%s\n%d\n%s\n", entry.issueKey, entry.start.Format("2006-01-02"), entry.start.Format("15:04:05"), entry.duration, entry.comment)
+	attrs := mergedTempoAttributes(cfg, entry.task)
+	keys := make([]string, 0, len(attrs))
+	for k := range attrs {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		fmt.Fprintf(h, "%s=%s\n", k, attrs[k])
+	}
+	return hex.EncodeToString(h.Sum(nil))
+}
+
+func buildSyncEntries(worklog *Worklog, taskUUID string, fromDay, toDay time.Time, roundingSteps []RoundingStep, cfg *Config) ([]syncEntry, error) {
 	type groupKey struct {
 		taskUUID string
 		day      string
@@ -437,12 +455,15 @@ func buildSyncEntries(worklog *Worklog, taskUUID string, fromDay, toDay time.Tim
 			continue
 		}
 
+		// Use task description as Tempo worklog comment
+		g.comment = strings.TrimSpace(g.task.description)
+
+		g.syncHash = computeSyncHash(*g, cfg)
+
 		// Check if any event in the group needs syncing
 		needsSync := false
 		for _, event := range g.events {
-			syncedAt := event.SyncedAt()
-			lastModified := event.LastModified()
-			if syncedAt.IsZero() || (!lastModified.IsZero() && syncedAt.Before(lastModified)) {
+			if event.SyncedAt().IsZero() || event.SyncHash() != g.syncHash {
 				needsSync = true
 				break
 			}
@@ -450,9 +471,6 @@ func buildSyncEntries(worklog *Worklog, taskUUID string, fromDay, toDay time.Tim
 		if !needsSync {
 			continue
 		}
-
-		// Use task description as Tempo worklog comment
-		g.comment = strings.TrimSpace(g.task.description)
 
 		entries = append(entries, *g)
 	}
@@ -852,6 +870,7 @@ func sendWorklogs(entries []syncEntry, client *tempo.Client, jiraClient *jira.Cl
 		now := time.Now()
 		for _, event := range e.events {
 			event.SetSyncedAt(now)
+			event.SetSyncHash(e.syncHash)
 		}
 	}
 	return nil

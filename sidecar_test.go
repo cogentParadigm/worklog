@@ -113,6 +113,7 @@ func TestSidecarRestoresStrippedEventMetadata(t *testing.T) {
 	ve.SetSummary("Work session")
 	ve.SetProperty("RELATED-TO", "task-1")
 	ve.SetProperty("X-WORKLOG-SYNCED-AT", "20240115T120000Z")
+	ve.SetProperty("X-WORKLOG-SYNC-HASH", "payloadhash123")
 
 	if err := saveCalendar(icsPath, cal); err != nil {
 		t.Fatal(err)
@@ -153,6 +154,9 @@ func TestSidecarRestoresStrippedEventMetadata(t *testing.T) {
 		expected := time.Date(2024, 1, 15, 12, 0, 0, 0, time.UTC)
 		if !event.SyncedAt().Equal(expected) {
 			t.Errorf("expected synced_at %v, got %v", expected, event.SyncedAt())
+		}
+		if event.SyncHash() != "payloadhash123" {
+			t.Errorf("expected sync_hash restored, got %q", event.SyncHash())
 		}
 	})
 

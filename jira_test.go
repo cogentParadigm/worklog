@@ -170,6 +170,47 @@ func TestEventLastModified(t *testing.T) {
 	}
 }
 
+func TestEventSyncHash(t *testing.T) {
+	event := &Event{
+		properties: []ics.IANAProperty{
+			{BaseProperty: ics.BaseProperty{IANAToken: "X-WORKLOG-SYNC-HASH", Value: "abc123"}},
+		},
+	}
+	if got := event.SyncHash(); got != "abc123" {
+		t.Errorf("SyncHash: got %q, want %q", got, "abc123")
+	}
+}
+
+func TestEventSyncHashEmpty(t *testing.T) {
+	event := &Event{properties: []ics.IANAProperty{}}
+	if event.SyncHash() != "" {
+		t.Error("expected empty hash for missing sync-hash")
+	}
+}
+
+func TestEventSetSyncHash(t *testing.T) {
+	event := &Event{properties: []ics.IANAProperty{}}
+	event.SetSyncHash("hash456")
+	if event.SyncHash() != "hash456" {
+		t.Errorf("after SetSyncHash: got %q, want %q", event.SyncHash(), "hash456")
+	}
+}
+
+func TestEventSetSyncHashUpdatesExisting(t *testing.T) {
+	event := &Event{
+		properties: []ics.IANAProperty{
+			{BaseProperty: ics.BaseProperty{IANAToken: "X-WORKLOG-SYNC-HASH", Value: "oldhash"}},
+		},
+	}
+	event.SetSyncHash("newhash")
+	if len(event.properties) != 1 {
+		t.Fatalf("expected 1 property, got %d", len(event.properties))
+	}
+	if event.properties[0].Value != "newhash" {
+		t.Errorf("updated value: got %q, want %q", event.properties[0].Value, "newhash")
+	}
+}
+
 func TestTaskTempoAttributes(t *testing.T) {
 	task := &Task{
 		properties: []ics.IANAProperty{
@@ -354,7 +395,7 @@ func TestBuildSyncEntriesBasic(t *testing.T) {
 
 	wl := &Worklog{tasks: []*Task{task}, events: []*Event{event}}
 
-	entries, err := buildSyncEntries(wl, "", time.Time{}, time.Time{}, nil)
+	entries, err := buildSyncEntries(wl, "", time.Time{}, time.Time{}, nil, nil)
 	if err != nil {
 		t.Fatalf("buildSyncEntries: %v", err)
 	}
@@ -392,7 +433,7 @@ func TestBuildSyncEntriesAggregatesSameTaskSameDay(t *testing.T) {
 
 	wl := &Worklog{tasks: []*Task{task}, events: []*Event{event1, event2, event3}}
 
-	entries, err := buildSyncEntries(wl, "", time.Time{}, time.Time{}, nil)
+	entries, err := buildSyncEntries(wl, "", time.Time{}, time.Time{}, nil, nil)
 	if err != nil {
 		t.Fatalf("buildSyncEntries: %v", err)
 	}
@@ -444,7 +485,7 @@ func TestBuildSyncEntriesSeparateTasksSameDay(t *testing.T) {
 		events: []*Event{eventMatt, eventNathan1, eventNathan2, eventNathan3},
 	}
 
-	entries, err := buildSyncEntries(wl, "", time.Time{}, time.Time{}, nil)
+	entries, err := buildSyncEntries(wl, "", time.Time{}, time.Time{}, nil, nil)
 	if err != nil {
 		t.Fatalf("buildSyncEntries: %v", err)
 	}
@@ -488,7 +529,7 @@ func TestBuildSyncEntriesNoComments(t *testing.T) {
 
 	wl := &Worklog{tasks: []*Task{task}, events: []*Event{event1, event2}}
 
-	entries, err := buildSyncEntries(wl, "", time.Time{}, time.Time{}, nil)
+	entries, err := buildSyncEntries(wl, "", time.Time{}, time.Time{}, nil, nil)
 	if err != nil {
 		t.Fatalf("buildSyncEntries: %v", err)
 	}
@@ -511,11 +552,22 @@ func TestBuildSyncEntriesSkipsFullySyncedGroup(t *testing.T) {
 		time.Date(2026, 5, 6, 9, 0, 0, 0, time.UTC),
 		time.Date(2026, 5, 6, 10, 30, 0, 0, time.UTC),
 		5400, task.name, "Worked on API")
-	event.SetSyncedAt(time.Now())
 
 	wl := &Worklog{tasks: []*Task{task}, events: []*Event{event}}
 
-	entries, err := buildSyncEntries(wl, "", time.Time{}, time.Time{}, nil)
+	// Compute expected hash from initial build
+	entries, err := buildSyncEntries(wl, "", time.Time{}, time.Time{}, nil, nil)
+	if err != nil {
+		t.Fatalf("buildSyncEntries: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 entry for initial build, got %d", len(entries))
+	}
+	event.SetSyncHash(entries[0].syncHash)
+	event.SetSyncedAt(time.Now())
+
+	// Now it should be skipped
+	entries, err = buildSyncEntries(wl, "", time.Time{}, time.Time{}, nil, nil)
 	if err != nil {
 		t.Fatalf("buildSyncEntries: %v", err)
 	}
@@ -532,17 +584,27 @@ func TestBuildSyncEntriesPartialSyncTriggersReSend(t *testing.T) {
 		time.Date(2026, 5, 6, 9, 0, 0, 0, time.UTC),
 		time.Date(2026, 5, 6, 10, 0, 0, 0, time.UTC),
 		3600, task.name, "Morning work")
-	event1.SetSyncedAt(time.Date(2026, 5, 6, 12, 0, 0, 0, time.UTC))
 
 	event2 := NewEvent(task.uuid,
 		time.Date(2026, 5, 6, 14, 0, 0, 0, time.UTC),
 		time.Date(2026, 5, 6, 15, 0, 0, 0, time.UTC),
 		3600, task.name, "Afternoon work")
-	// event2 is not synced
 
-	wl := &Worklog{tasks: []*Task{task}, events: []*Event{event1, event2}}
+	// Sync event1 alone first
+	wl := &Worklog{tasks: []*Task{task}, events: []*Event{event1}}
+	entries, err := buildSyncEntries(wl, "", time.Time{}, time.Time{}, nil, nil)
+	if err != nil {
+		t.Fatalf("buildSyncEntries: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 entry for event1 alone, got %d", len(entries))
+	}
+	event1.SetSyncHash(entries[0].syncHash)
+	event1.SetSyncedAt(time.Date(2026, 5, 6, 12, 0, 0, 0, time.UTC))
 
-	entries, err := buildSyncEntries(wl, "", time.Time{}, time.Time{}, nil)
+	// Add event2: group hash changes because duration and events differ
+	wl.events = []*Event{event1, event2}
+	entries, err = buildSyncEntries(wl, "", time.Time{}, time.Time{}, nil, nil)
 	if err != nil {
 		t.Fatalf("buildSyncEntries: %v", err)
 	}
@@ -570,7 +632,7 @@ func TestBuildSyncEntriesDateRange(t *testing.T) {
 
 	from := time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC)
 	to := time.Date(2026, 5, 5, 0, 0, 0, 0, time.UTC)
-	entries, err := buildSyncEntries(wl, "", from, to, nil)
+	entries, err := buildSyncEntries(wl, "", from, to, nil, nil)
 	if err != nil {
 		t.Fatalf("buildSyncEntries: %v", err)
 	}
@@ -580,7 +642,7 @@ func TestBuildSyncEntriesDateRange(t *testing.T) {
 
 	from = time.Date(2026, 5, 6, 0, 0, 0, 0, time.UTC)
 	to = time.Date(2026, 5, 6, 0, 0, 0, 0, time.UTC)
-	entries, err = buildSyncEntries(wl, "", from, to, nil)
+	entries, err = buildSyncEntries(wl, "", from, to, nil, nil)
 	if err != nil {
 		t.Fatalf("buildSyncEntries: %v", err)
 	}
@@ -606,7 +668,7 @@ func TestBuildSyncEntriesTaskFilter(t *testing.T) {
 
 	wl := &Worklog{tasks: []*Task{task1, task2}, events: []*Event{event1, event2}}
 
-	entries, err := buildSyncEntries(wl, "task-uuid-b", time.Time{}, time.Time{}, nil)
+	entries, err := buildSyncEntries(wl, "task-uuid-b", time.Time{}, time.Time{}, nil, nil)
 	if err != nil {
 		t.Fatalf("buildSyncEntries: %v", err)
 	}
@@ -629,7 +691,7 @@ func TestBuildSyncEntriesNoIssueKey(t *testing.T) {
 
 	wl := &Worklog{tasks: []*Task{task}, events: []*Event{event}}
 
-	entries, err := buildSyncEntries(wl, "", time.Time{}, time.Time{}, nil)
+	entries, err := buildSyncEntries(wl, "", time.Time{}, time.Time{}, nil, nil)
 	if err != nil {
 		t.Fatalf("buildSyncEntries: %v", err)
 	}
@@ -641,24 +703,29 @@ func TestBuildSyncEntriesNoIssueKey(t *testing.T) {
 func TestBuildSyncEntriesReSyncAfterEdit(t *testing.T) {
 	task := NewTask("Implement PROJ-123")
 	task.uuid = "task-uuid-5"
+	task.description = "Initial work"
 
 	event := NewEvent(task.uuid,
 		time.Date(2026, 5, 6, 9, 0, 0, 0, time.UTC),
 		time.Date(2026, 5, 6, 10, 0, 0, 0, time.UTC),
-		3600, task.name, "Initial work")
-
-	// Simulate: synced yesterday, then edited today
-	event.SetSyncedAt(time.Date(2026, 5, 5, 10, 0, 0, 0, time.UTC))
-	// Update last-modified to today
-	for i, prop := range event.properties {
-		if prop.IANAToken == "LAST-MODIFIED" {
-			event.properties[i].Value = "20260506T120000Z"
-		}
-	}
+		3600, task.name, "")
 
 	wl := &Worklog{tasks: []*Task{task}, events: []*Event{event}}
 
-	entries, err := buildSyncEntries(wl, "", time.Time{}, time.Time{}, nil)
+	// Build and sync
+	entries, err := buildSyncEntries(wl, "", time.Time{}, time.Time{}, nil, nil)
+	if err != nil {
+		t.Fatalf("buildSyncEntries: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 entry for initial build, got %d", len(entries))
+	}
+	event.SetSyncHash(entries[0].syncHash)
+
+	// Edit task description (changes comment/payload)
+	task.description = "Updated work"
+
+	entries, err = buildSyncEntries(wl, "", time.Time{}, time.Time{}, nil, nil)
 	if err != nil {
 		t.Fatalf("buildSyncEntries: %v", err)
 	}
@@ -670,28 +737,154 @@ func TestBuildSyncEntriesReSyncAfterEdit(t *testing.T) {
 func TestBuildSyncEntriesNoReSyncIfUnchanged(t *testing.T) {
 	task := NewTask("Implement PROJ-123")
 	task.uuid = "task-uuid-6"
+	task.description = "Initial work"
 
 	event := NewEvent(task.uuid,
 		time.Date(2026, 5, 6, 9, 0, 0, 0, time.UTC),
 		time.Date(2026, 5, 6, 10, 0, 0, 0, time.UTC),
-		3600, task.name, "Initial work")
-
-	// Synced after last edit
-	event.SetSyncedAt(time.Date(2026, 5, 6, 12, 0, 0, 0, time.UTC))
-	for i, prop := range event.properties {
-		if prop.IANAToken == "LAST-MODIFIED" {
-			event.properties[i].Value = "20260506T100000Z"
-		}
-	}
+		3600, task.name, "")
 
 	wl := &Worklog{tasks: []*Task{task}, events: []*Event{event}}
 
-	entries, err := buildSyncEntries(wl, "", time.Time{}, time.Time{}, nil)
+	// Build and set sync hash
+	entries, err := buildSyncEntries(wl, "", time.Time{}, time.Time{}, nil, nil)
+	if err != nil {
+		t.Fatalf("buildSyncEntries: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 entry for initial build, got %d", len(entries))
+	}
+	event.SetSyncHash(entries[0].syncHash)
+	event.SetSyncedAt(time.Date(2026, 5, 6, 12, 0, 0, 0, time.UTC))
+
+	// Rebuild — unchanged, should skip
+	entries, err = buildSyncEntries(wl, "", time.Time{}, time.Time{}, nil, nil)
 	if err != nil {
 		t.Fatalf("buildSyncEntries: %v", err)
 	}
 	if len(entries) != 0 {
-		t.Errorf("expected 0 entries when synced after last modified, got %d", len(entries))
+		t.Errorf("expected 0 entries when unchanged, got %d", len(entries))
+	}
+}
+
+func TestBuildSyncEntriesExternalAppBumpsLastModified(t *testing.T) {
+	task := NewTask("Implement PROJ-123")
+	task.uuid = "task-uuid-lm"
+	task.description = "Some work"
+
+	event := NewEvent(task.uuid,
+		time.Date(2026, 5, 6, 9, 0, 0, 0, time.UTC),
+		time.Date(2026, 5, 6, 10, 0, 0, 0, time.UTC),
+		3600, task.name, "")
+
+	wl := &Worklog{tasks: []*Task{task}, events: []*Event{event}}
+
+	// Build and set sync hash
+	entries, err := buildSyncEntries(wl, "", time.Time{}, time.Time{}, nil, nil)
+	if err != nil {
+		t.Fatalf("buildSyncEntries: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 entry for initial build, got %d", len(entries))
+	}
+	event.SetSyncHash(entries[0].syncHash)
+	event.SetSyncedAt(time.Date(2026, 5, 6, 12, 0, 0, 0, time.UTC))
+
+	// Simulate external app (e.g. KTimeTracker) bumping LAST-MODIFIED
+	for i, prop := range event.properties {
+		if prop.IANAToken == "LAST-MODIFIED" {
+			event.properties[i].Value = "20260506T200000Z"
+		}
+	}
+
+	// Should still skip — hash unchanged despite LAST-MODIFIED bump
+	entries, err = buildSyncEntries(wl, "", time.Time{}, time.Time{}, nil, nil)
+	if err != nil {
+		t.Fatalf("buildSyncEntries: %v", err)
+	}
+	if len(entries) != 0 {
+		t.Errorf("expected 0 entries after external LAST-MODIFIED bump, got %d", len(entries))
+	}
+}
+
+func TestBuildSyncEntriesReSyncAfterIssueKeyChange(t *testing.T) {
+	task := NewTask("Implement PROJ-123")
+	task.uuid = "task-uuid-ik"
+	task.description = "Work"
+
+	event := NewEvent(task.uuid,
+		time.Date(2026, 5, 6, 9, 0, 0, 0, time.UTC),
+		time.Date(2026, 5, 6, 10, 0, 0, 0, time.UTC),
+		3600, task.name, "")
+
+	wl := &Worklog{tasks: []*Task{task}, events: []*Event{event}}
+
+	// Build and sync
+	entries, err := buildSyncEntries(wl, "", time.Time{}, time.Time{}, nil, nil)
+	if err != nil {
+		t.Fatalf("buildSyncEntries: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 entry for initial build, got %d", len(entries))
+	}
+	event.SetSyncHash(entries[0].syncHash)
+	event.SetSyncedAt(time.Date(2026, 5, 6, 12, 0, 0, 0, time.UTC))
+
+	// Change task name so issue key auto-detection changes
+	task.name = "Implement PROJ-456"
+
+	entries, err = buildSyncEntries(wl, "", time.Time{}, time.Time{}, nil, nil)
+	if err != nil {
+		t.Fatalf("buildSyncEntries: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Errorf("expected 1 entry for re-sync after issue key change, got %d", len(entries))
+	}
+	if entries[0].issueKey != "PROJ-456" {
+		t.Errorf("issue key: got %q, want PROJ-456", entries[0].issueKey)
+	}
+}
+
+func TestBuildSyncEntriesReSyncAfterTempoAttributeChange(t *testing.T) {
+	task := NewTask("Implement PROJ-123")
+	task.uuid = "task-uuid-attr"
+	task.description = "Work"
+
+	event := NewEvent(task.uuid,
+		time.Date(2026, 5, 6, 9, 0, 0, 0, time.UTC),
+		time.Date(2026, 5, 6, 10, 0, 0, 0, time.UTC),
+		3600, task.name, "")
+
+	wl := &Worklog{tasks: []*Task{task}, events: []*Event{event}}
+
+	// Build and sync with default attribute from config
+	cfg := &Config{
+		Tempo: TempoConfig{
+			Attributes: map[string]string{"_WorkType_": "Development"},
+		},
+	}
+	entries, err := buildSyncEntries(wl, "", time.Time{}, time.Time{}, nil, cfg)
+	if err != nil {
+		t.Fatalf("buildSyncEntries: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 entry for initial build, got %d", len(entries))
+	}
+	event.SetSyncHash(entries[0].syncHash)
+	event.SetSyncedAt(time.Date(2026, 5, 6, 12, 0, 0, 0, time.UTC))
+
+	// Change task-level Tempo attribute
+	task.SetTempoAttribute("_WorkType_", "Review")
+
+	entries, err = buildSyncEntries(wl, "", time.Time{}, time.Time{}, nil, cfg)
+	if err != nil {
+		t.Fatalf("buildSyncEntries: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Errorf("expected 1 entry for re-sync after tempo attr change, got %d", len(entries))
+	}
+	if entries[0].task.TempoAttributes()["_WorkType_"] != "Review" {
+		t.Errorf("tempo attr: got %q, want Review", entries[0].task.TempoAttributes()["_WorkType_"])
 	}
 }
 
@@ -914,7 +1107,7 @@ func TestBuildSyncEntriesWithRounding(t *testing.T) {
 	wl := &Worklog{tasks: []*Task{task}, events: []*Event{event1, event2}}
 
 	steps := []RoundingStep{{Step: "floor", To: "1m"}, {Step: "ceil", To: "5m"}}
-	entries, err := buildSyncEntries(wl, "", time.Time{}, time.Time{}, steps)
+	entries, err := buildSyncEntries(wl, "", time.Time{}, time.Time{}, steps, nil)
 	if err != nil {
 		t.Fatalf("buildSyncEntries: %v", err)
 	}
@@ -941,7 +1134,7 @@ func TestBuildSyncEntriesRoundingToZero(t *testing.T) {
 	wl := &Worklog{tasks: []*Task{task}, events: []*Event{event}}
 
 	steps := []RoundingStep{{Step: "floor", To: "1m"}}
-	entries, err := buildSyncEntries(wl, "", time.Time{}, time.Time{}, steps)
+	entries, err := buildSyncEntries(wl, "", time.Time{}, time.Time{}, steps, nil)
 	if err != nil {
 		t.Fatalf("buildSyncEntries: %v", err)
 	}

@@ -27,6 +27,7 @@ type TaskMeta struct {
 
 type EventMeta struct {
 	SyncedAt string `json:"synced_at,omitempty"`
+	SyncHash string `json:"sync_hash,omitempty"`
 }
 
 func sidecarPath(icsPath string) string {
@@ -96,10 +97,18 @@ func buildSidecar(tasks []*Task, events []*Event) *Sidecar {
 		sc.Tasks[task.uuid] = meta
 	}
 	for _, event := range events {
+		meta := EventMeta{}
+		hasData := false
 		if !event.SyncedAt().IsZero() {
-			sc.Events[event.uuid] = EventMeta{
-				SyncedAt: event.SyncedAt().UTC().Format("20060102T150405Z"),
-			}
+			meta.SyncedAt = event.SyncedAt().UTC().Format("20060102T150405Z")
+			hasData = true
+		}
+		if event.SyncHash() != "" {
+			meta.SyncHash = event.SyncHash()
+			hasData = true
+		}
+		if hasData {
+			sc.Events[event.uuid] = meta
 		}
 	}
 	return sc
@@ -150,11 +159,19 @@ func restoreFromSidecar(tasks []*Task, events []*Event, sc *Sidecar) {
 		if !ok {
 			continue
 		}
+		restored := false
 		if event.SyncedAt().IsZero() && meta.SyncedAt != "" {
 			if t, err := time.Parse("20060102T150405Z", meta.SyncedAt); err == nil {
 				event.SetSyncedAt(t)
-				fmt.Fprintf(os.Stderr, "Restored metadata for event %q from sidecar (another application may have stripped worklog properties)\n", event.summary)
+				restored = true
 			}
+		}
+		if event.SyncHash() == "" && meta.SyncHash != "" {
+			event.SetSyncHash(meta.SyncHash)
+			restored = true
+		}
+		if restored {
+			fmt.Fprintf(os.Stderr, "Restored metadata for event %q from sidecar (another application may have stripped worklog properties)\n", event.summary)
 		}
 	}
 }

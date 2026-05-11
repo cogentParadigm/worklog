@@ -439,7 +439,7 @@ If none are set, the command exits with an error.
 
 All existing VEVENT components (timer sessions from other apps), calendar-level properties, and any unknown iCalendar components are preserved exactly across saves.
 
-**Sidecar file:** Worklog creates a `.worklog` sidecar file next to each `.ics` it saves (e.g., `tasks.ics.worklog`). This JSON file stores worklog-specific metadata such as cached Jira issue IDs and Tempo attributes. If another application strips these properties when it saves the `.ics`, worklog automatically restores them from the sidecar on the next load and prints a notice to stderr.
+**Sidecar file:** Worklog creates a `.worklog` sidecar file next to each `.ics` it saves (e.g., `tasks.ics.worklog`). This JSON file stores worklog-specific metadata such as cached Jira issue IDs, Tempo attributes, and sync fingerprints. If another application strips these properties when it saves the `.ics`, worklog automatically restores them from the sidecar on the next load and prints a notice to stderr.
 
 ## iCalendar Compatibility
 

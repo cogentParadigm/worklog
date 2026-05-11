@@ -44,6 +44,14 @@ func (event *Event) SetSyncedAt(t time.Time) {
 	event.setProperty("X-WORKLOG-SYNCED-AT", t.UTC().Format("20060102T150405Z"))
 }
 
+func (event *Event) SyncHash() string {
+	return event.getProperty("X-WORKLOG-SYNC-HASH")
+}
+
+func (event *Event) SetSyncHash(hash string) {
+	event.setProperty("X-WORKLOG-SYNC-HASH", hash)
+}
+
 func (event *Event) LastModified() time.Time {
 	if v := event.getProperty("LAST-MODIFIED"); v != "" {
 		if t, err := time.Parse("20060102T150405Z", v); err == nil {
