@@ -335,14 +335,7 @@ func findSkippedTasks(worklog *Worklog, taskUUID string, fromDay, toDay time.Tim
 	taskMap := make(map[string]*Task)
 
 	for _, event := range worklog.GetEvents() {
-		if event.dtstart.IsZero() {
-			continue
-		}
-		day := time.Date(event.dtstart.Year(), event.dtstart.Month(), event.dtstart.Day(), 0, 0, 0, 0, event.dtstart.Location())
-		if !fromDay.IsZero() && day.Before(fromDay) {
-			continue
-		}
-		if !toDay.IsZero() && day.After(toDay) {
+		if !eventInDateRange(event, fromDay, toDay) {
 			continue
 		}
 		task := worklog.FindTaskByUUID(event.relatedTo)
@@ -397,15 +390,7 @@ func buildSyncEntries(worklog *Worklog, taskUUID string, fromDay, toDay time.Tim
 
 	events := worklog.GetEvents()
 	for _, event := range events {
-		if event.dtstart.IsZero() {
-			continue
-		}
-
-		day := time.Date(event.dtstart.Year(), event.dtstart.Month(), event.dtstart.Day(), 0, 0, 0, 0, event.dtstart.Location())
-		if !fromDay.IsZero() && day.Before(fromDay) {
-			continue
-		}
-		if !toDay.IsZero() && day.After(toDay) {
+		if !eventInDateRange(event, fromDay, toDay) {
 			continue
 		}
 
@@ -422,6 +407,7 @@ func buildSyncEntries(worklog *Worklog, taskUUID string, fromDay, toDay time.Tim
 			continue
 		}
 
+		day := time.Date(event.dtstart.Year(), event.dtstart.Month(), event.dtstart.Day(), 0, 0, 0, 0, event.dtstart.Location())
 		key := groupKey{taskUUID: task.uuid, day: day.Format("2006-01-02"), issueKey: issueKey}
 		g, ok := groups[key]
 		if !ok {

@@ -200,3 +200,109 @@ func TestParseTimeFlagInvalid(t *testing.T) {
 		t.Error("Expected error for invalid time")
 	}
 }
+
+func TestEventInDateRange(t *testing.T) {
+	aug10 := time.Date(2023, 8, 10, 0, 0, 0, 0, time.Local)
+	aug15 := time.Date(2023, 8, 15, 0, 0, 0, 0, time.Local)
+	aug20 := time.Date(2023, 8, 20, 0, 0, 0, 0, time.Local)
+
+	tests := []struct {
+		name    string
+		dtstart time.Time
+		fromDay time.Time
+		toDay   time.Time
+		want    bool
+	}{
+		{
+			name:    "in range",
+			dtstart: aug15,
+			fromDay: aug10,
+			want:    true,
+		},
+		{
+			name:    "before range",
+			dtstart: aug10,
+			fromDay: aug15,
+			want:    false,
+		},
+		{
+			name:    "after range",
+			dtstart: aug20,
+			toDay:   aug15,
+			want:    false,
+		},
+		{
+			name:    "no dtstart",
+			dtstart: time.Time{},
+			fromDay: aug10,
+			toDay:   aug20,
+			want:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			event := &Event{dtstart: tt.dtstart}
+			got := eventInDateRange(event, tt.fromDay, tt.toDay)
+			if got != tt.want {
+				t.Errorf("eventInDateRange() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestEventInDateRangeOrUndated(t *testing.T) {
+	aug10 := time.Date(2023, 8, 10, 0, 0, 0, 0, time.Local)
+	aug15 := time.Date(2023, 8, 15, 0, 0, 0, 0, time.Local)
+	aug20 := time.Date(2023, 8, 20, 0, 0, 0, 0, time.Local)
+
+	tests := []struct {
+		name    string
+		dtstart time.Time
+		fromDay time.Time
+		toDay   time.Time
+		want    bool
+	}{
+		{
+			name:    "dated in range",
+			dtstart: aug15,
+			fromDay: aug10,
+			toDay:   aug20,
+			want:    true,
+		},
+		{
+			name:    "dated before range",
+			dtstart: aug10,
+			fromDay: aug15,
+			toDay:   aug20,
+			want:    false,
+		},
+		{
+			name:    "undated no bounds",
+			dtstart: time.Time{},
+			want:    true,
+		},
+		{
+			name:    "undated with fromDay set",
+			dtstart: time.Time{},
+			fromDay: aug10,
+			want:    false,
+		},
+		{
+			name:    "undated with toDay set",
+			dtstart: time.Time{},
+			toDay:   aug20,
+			want:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			event := &Event{dtstart: tt.dtstart}
+			got := eventInDateRangeOrUndated(event, tt.fromDay, tt.toDay)
+			if got != tt.want {
+				t.Errorf("eventInDateRangeOrUndated() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

@@ -144,15 +144,7 @@ func runTimeList(args []string) error {
 	var filtered []*Event
 	for _, event := range events {
 		// Date range filter
-		if !event.dtstart.IsZero() {
-			eventDay := time.Date(event.dtstart.Year(), event.dtstart.Month(), event.dtstart.Day(), 0, 0, 0, 0, event.dtstart.Location())
-			if !fromDay.IsZero() && eventDay.Before(fromDay) {
-				continue
-			}
-			if !toDay.IsZero() && eventDay.After(toDay) {
-				continue
-			}
-		} else if !fromDay.IsZero() || !toDay.IsZero() {
+		if !eventInDateRangeOrUndated(event, fromDay, toDay) {
 			continue
 		}
 

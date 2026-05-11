@@ -25,6 +25,31 @@ func (event *Event) getUUID() string {
 	return event.uuid
 }
 
+// eventInDateRange reports whether an event falls within [fromDay, toDay]
+// inclusive. Events with no DTSTART are rejected.
+func eventInDateRange(event *Event, fromDay, toDay time.Time) bool {
+	if event.dtstart.IsZero() {
+		return false
+	}
+	day := time.Date(event.dtstart.Year(), event.dtstart.Month(), event.dtstart.Day(), 0, 0, 0, 0, event.dtstart.Location())
+	if !fromDay.IsZero() && day.Before(fromDay) {
+		return false
+	}
+	if !toDay.IsZero() && day.After(toDay) {
+		return false
+	}
+	return true
+}
+
+// eventInDateRangeOrUndated reports whether an event falls within [fromDay, toDay]
+// inclusive. Events with no DTSTART are accepted only when no date bounds are set.
+func eventInDateRangeOrUndated(event *Event, fromDay, toDay time.Time) bool {
+	if event.dtstart.IsZero() {
+		return fromDay.IsZero() && toDay.IsZero()
+	}
+	return eventInDateRange(event, fromDay, toDay)
+}
+
 // Generic property helpers --------------------------------------------------
 
 func (event *Event) getProperty(token string) string {
