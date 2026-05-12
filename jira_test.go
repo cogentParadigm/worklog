@@ -1142,3 +1142,37 @@ func TestBuildSyncEntriesRoundingToZero(t *testing.T) {
 		t.Errorf("expected 0 entries after rounding to zero, got %d", len(entries))
 	}
 }
+
+func TestBuildSyncEntriesSkipsInProgressEvents(t *testing.T) {
+	task := NewTask("Implement PROJ-123 feature")
+	task.uuid = "task-uuid-inprogress"
+
+	finished := NewEvent(task.uuid,
+		time.Date(2026, 5, 6, 9, 0, 0, 0, time.UTC),
+		time.Date(2026, 5, 6, 10, 0, 0, 0, time.UTC),
+		3600, task.name, "Finished work")
+
+	inProgress := NewEvent(task.uuid,
+		time.Date(2026, 5, 6, 11, 0, 0, 0, time.UTC),
+		time.Time{}, // no DTEND
+		0, task.name, "In progress work")
+
+	wl := &Worklog{tasks: []*Task{task}, events: []*Event{finished, inProgress}}
+
+	entries, err := buildSyncEntries(wl, "", time.Time{}, time.Time{}, nil, nil)
+	if err != nil {
+		t.Fatalf("buildSyncEntries: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 entry (finished only), got %d", len(entries))
+	}
+	if entries[0].duration != 3600 {
+		t.Errorf("duration: got %d, want 3600", entries[0].duration)
+	}
+	if len(entries[0].events) != 1 {
+		t.Errorf("expected 1 source event, got %d", len(entries[0].events))
+	}
+	if entries[0].events[0].uuid != finished.uuid {
+		t.Error("expected finished event, got in-progress event")
+	}
+}

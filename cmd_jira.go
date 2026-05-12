@@ -411,6 +411,9 @@ func buildSyncEntries(worklog *Worklog, taskUUID string, fromDay, toDay time.Tim
 		if !eventInDateRange(event, fromDay, toDay) {
 			continue
 		}
+		if event.dtend.IsZero() {
+			continue // skip in-progress events (active timer)
+		}
 
 		task := worklog.FindTaskByUUID(event.relatedTo)
 		if task == nil {

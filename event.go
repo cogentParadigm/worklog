@@ -1,7 +1,6 @@
 package main
 
 import (
-	"strconv"
 	"time"
 
 	ics "github.com/arran4/golang-ical"
@@ -134,10 +133,15 @@ func makeEventForVEvent(ve *ics.VEvent) Event {
 		}
 	}
 
-	// Parse X-KDE-ktimetracker-duration
-	if durProp := ve.GetProperty("X-KDE-ktimetracker-duration"); durProp != nil {
-		if d, err := strconv.Atoi(durProp.Value); err == nil {
-			event.duration = d
+	// Compute duration from DTSTART/DTEND so we don't depend on
+	// KTimeTracker-specific properties. For in-progress events
+	// (DTSTART present but no DTEND), duration is the elapsed
+	// time since start.
+	if !event.dtstart.IsZero() {
+		if !event.dtend.IsZero() {
+			event.duration = int(event.dtend.Sub(event.dtstart).Seconds())
+		} else {
+			event.duration = int(time.Now().Sub(event.dtstart).Seconds())
 		}
 	}
 
@@ -181,11 +185,7 @@ func makeVEventForEvent(event *Event) ics.VEvent {
 				ve.SetEndAt(event.dtend)
 			}
 			emitted["DTEND"] = true
-		case "X-KDE-ktimetracker-duration":
-			if event.duration > 0 {
-				ve.SetProperty("X-KDE-ktimetracker-duration", strconv.Itoa(event.duration))
-				emitted["X-KDE-ktimetracker-duration"] = true
-			}
+
 		default:
 			ve.Properties = append(ve.Properties, prop)
 		}

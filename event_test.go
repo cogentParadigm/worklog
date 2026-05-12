@@ -306,3 +306,23 @@ func TestEventInDateRangeOrUndated(t *testing.T) {
 		})
 	}
 }
+
+func TestInProgressEventDuration(t *testing.T) {
+	startTime := time.Date(2023, 8, 27, 17, 0, 0, 0, time.UTC)
+	ve := ics.VEvent{}
+	ve.SetProperty(ics.ComponentPropertyUniqueId, "event-uuid-inprogress")
+	ve.SetProperty(ics.ComponentPropertySummary, "In Progress")
+	ve.SetStartAt(startTime)
+	// No DTEND
+
+	event := makeEventForVEvent(&ve)
+	if !event.dtend.IsZero() {
+		t.Error("Expected dtend to be zero for in-progress event")
+	}
+
+	// Allow a few seconds of tolerance for test execution time
+	want := int(time.Now().Sub(startTime).Seconds())
+	if event.duration < want-2 || event.duration > want+2 {
+		t.Errorf("Expected duration around %d, got %d", want, event.duration)
+	}
+}

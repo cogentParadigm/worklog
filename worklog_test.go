@@ -700,8 +700,8 @@ func TestEventModelParsesProperties(t *testing.T) {
 	if event.relatedTo != "task-uuid-1" {
 		t.Errorf("Expected relatedTo 'task-uuid-1', got '%s'", event.relatedTo)
 	}
-	if event.duration != 3600 {
-		t.Errorf("Expected duration 3600, got %d", event.duration)
+	if event.duration != 1800 {
+		t.Errorf("Expected duration 1800 (from DTSTART/DTEND), got %d", event.duration)
 	}
 	if !event.dtstart.Equal(startTime) {
 		t.Errorf("Expected dtstart %v, got %v", startTime, event.dtstart)
@@ -731,6 +731,10 @@ func TestEventRoundTrip(t *testing.T) {
 	ve.SetEndAt(endTime)
 
 	event := makeEventForVEvent(&ve)
+	if event.duration != 1800 {
+		t.Errorf("Expected duration 1800 (from DTSTART/DTEND), got %d", event.duration)
+	}
+
 	outVe := makeVEventForEvent(&event)
 
 	if getEventProperty(&outVe, ics.ComponentPropertyUniqueId) != "event-uuid-1" {
@@ -756,6 +760,29 @@ func TestEventRoundTrip(t *testing.T) {
 	outEnd, err := outVe.GetEndAt()
 	if err != nil || !outEnd.Equal(endTime) {
 		t.Errorf("Expected end time %v, got %v, err=%v", endTime, outEnd, err)
+	}
+}
+
+func TestNegativeKTimeTrackerDurationPreserved(t *testing.T) {
+	ve := ics.VEvent{}
+	ve.SetProperty(ics.ComponentPropertyUniqueId, "event-uuid-neg")
+	ve.SetProperty(ics.ComponentPropertySummary, "Negative Duration Test")
+	ve.SetProperty("RELATED-TO", "task-uuid-1")
+	ve.SetProperty("X-KDE-ktimetracker-duration", "-300")
+
+	startTime := time.Date(2023, time.August, 27, 17, 0, 0, 0, time.UTC)
+	endTime := startTime.Add(30 * time.Minute)
+	ve.SetStartAt(startTime)
+	ve.SetEndAt(endTime)
+
+	event := makeEventForVEvent(&ve)
+	if event.duration != 1800 {
+		t.Errorf("Expected duration 1800 (from DTSTART/DTEND), got %d", event.duration)
+	}
+
+	outVe := makeVEventForEvent(&event)
+	if getEventProperty(&outVe, "X-KDE-ktimetracker-duration") != "-300" {
+		t.Errorf("Expected negative X-KDE-ktimetracker-duration preserved as '-300', got '%s'", getEventProperty(&outVe, "X-KDE-ktimetracker-duration"))
 	}
 }
 
