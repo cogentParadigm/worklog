@@ -1,3 +1,10 @@
+## [0.25.1](https://github.com/cogentParadigm/worklog/compare/v0.25.0...v0.25.1) (2026-05-12)
+
+
+### Bug Fixes
+
+* **jira:** compute duration from DTSTART/DTEND instead of KDE property ([cdb180a](https://github.com/cogentParadigm/worklog/commit/cdb180aca1a5b8da4e51a091d705cd029e6eaa5f))
+
 # [0.25.0](https://github.com/cogentParadigm/worklog/compare/v0.24.0...v0.25.0) (2026-05-11)
 
 
