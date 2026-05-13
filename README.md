@@ -61,6 +61,9 @@ worklog task create -file ~/source.ics -output ~/backup.ics -name "Backup task"
 
 ## Usage
 
+All commands accept the following global flags:
+- `-v` / `--verbose` — Enable verbose output (e.g., per-item sidecar restoration notices).
+
 ### `init`
 
 Initializes the worklog configuration interactively or via flags. Detects existing `.ics` files (including common KTimeTracker locations) and suggests them as the default worklog file. Creates a skeleton `.ics` file if one does not exist.
