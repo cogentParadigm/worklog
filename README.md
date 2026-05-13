@@ -314,6 +314,16 @@ worklog report timesheet -format csv -decimal
 worklog report timesheet -all -hide-empty
 ```
 
+### `jira search`
+
+Search Jira issues by summary or key using the issue picker API. This is useful for discovering issue keys when you know part of the summary but not the exact key.
+
+**Examples:**
+```bash
+worklog jira search "onboarding refactor"
+worklog jira search PROJ-123
+```
+
 ### `jira resolve`
 
 Resolves Jira issue keys to numeric IDs and caches them on tasks. This is useful for progressive testing of Jira connectivity before running a full sync. Only Jira configuration is required — Tempo credentials are not needed.
@@ -365,6 +375,7 @@ Previews (dry-run output in both `list` and `timesheet` formats) include short t
 - `-hide-empty` — Hide days with no time entries (`timesheet` format only).
 - `-decimal` — Display hours in decimal format (`timesheet` format only).
 - `-rounding` — Rounding steps: `floor/ceil/round:to[,...]` (overrides config; default is `round:1m`).
+- `-resolve-skipped` — Interactively search and assign issue keys to skipped tasks before syncing.
 
 **Examples:**
 ```bash
@@ -385,6 +396,9 @@ worklog jira sync --dry-run --format timesheet
 
 # Preview in timesheet format, hiding empty days and showing decimal hours
 worklog jira sync --dry-run --format timesheet --hide-empty --decimal
+
+# Interactively resolve skipped tasks before syncing
+worklog jira sync --resolve-skipped
 
 # Sync with custom rounding (floor to minutes, then ceil to 5 minutes)
 worklog jira sync --rounding "floor:1m,ceil:5m"
