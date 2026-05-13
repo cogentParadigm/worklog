@@ -3,6 +3,8 @@ package main
 import (
 	"regexp"
 	"time"
+
+	ics "github.com/arran4/golang-ical"
 )
 
 var issueKeyRegex = regexp.MustCompile(`([A-Z][A-Z0-9]+-\d+)`)
@@ -28,6 +30,21 @@ func (task *Task) SetIssueID(id string) {
 }
 
 func (task *Task) ClearIssueID() {
+	task.removeProperty("X-WORKLOG-ISSUE-ID")
+}
+
+func (task *Task) SetIssueKey(key string) {
+	task.removeProperty("X-WORKLOG-ISSUE-KEY")
+	task.removeProperty("X-WORKLOG-ISSUE-ID")
+	if key != "" {
+		task.properties = append(task.properties, ics.IANAProperty{
+			BaseProperty: ics.BaseProperty{IANAToken: "X-WORKLOG-ISSUE-KEY", Value: key},
+		})
+	}
+}
+
+func (task *Task) ClearIssueKey() {
+	task.removeProperty("X-WORKLOG-ISSUE-KEY")
 	task.removeProperty("X-WORKLOG-ISSUE-ID")
 }
 
