@@ -72,7 +72,9 @@ func TestSidecarRestoresStrippedTaskMetadata(t *testing.T) {
 	}
 
 	// Reload: metadata should be restored from sidecar
+	oldVerbose := verbose
 	verbose = true
+	defer func() { verbose = oldVerbose }()
 	stderr := captureStderr(func() {
 		wl2, err := NewWorklog(icsPath)
 		if err != nil {
@@ -94,7 +96,6 @@ func TestSidecarRestoresStrippedTaskMetadata(t *testing.T) {
 			t.Errorf("expected tempo attr account=engineering, got %v", attrs)
 		}
 	})
-	verbose = false
 
 	if !strings.Contains(stderr, "Restored metadata for task \"Task One\"") {
 		t.Errorf("expected stderr notice about restored metadata, got: %s", stderr)
@@ -143,7 +144,9 @@ func TestSidecarRestoresStrippedEventMetadata(t *testing.T) {
 	}
 
 	// Reload: metadata should be restored
+	oldVerbose := verbose
 	verbose = true
+	defer func() { verbose = oldVerbose }()
 	stderr := captureStderr(func() {
 		wl2, err := NewWorklog(icsPath)
 		if err != nil {
@@ -162,7 +165,6 @@ func TestSidecarRestoresStrippedEventMetadata(t *testing.T) {
 			t.Errorf("expected sync_hash restored, got %q", event.SyncHash())
 		}
 	})
-	verbose = false
 
 	if !strings.Contains(stderr, "Restored metadata for event \"Work session\"") {
 		t.Errorf("expected stderr notice about restored event metadata, got: %s", stderr)
