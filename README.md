@@ -61,8 +61,13 @@ worklog task create -file ~/source.ics -output ~/backup.ics -name "Backup task"
 
 ## Usage
 
-All commands accept the following global flags:
+All subcommands support the following flag:
 - `-v` / `--verbose` — Enable verbose output (e.g., per-item sidecar restoration notices).
+
+Example:
+```bash
+worklog task list --verbose
+```
 
 ### `init`
 
