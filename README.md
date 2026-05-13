@@ -1,6 +1,6 @@
 # Worklog
 
-A CLI worklog and time tracking tool using standard iCalendar (`.ics`) files, with an extensible architecture for integrations.
+A CLI worklog and time tracking tool using standard iCalendar (`.ics`) files, with a Jira/Tempo integration and a plugin architecture in progress.
 
 > ⚠️ **Work in Progress**: This tool is actively being developed. Core functionality works, but some features are incomplete.
 
@@ -16,7 +16,7 @@ Worklog reads and writes standard iCalendar (`.ics`) files, making it compatible
 - **Time Entry Management**: Add, list, edit, and delete manual time entries with duration auto-recompute
 - **Timesheet Reports**: Generate daily timesheets by task with table and CSV output
 - **Jira/Tempo Sync**: Send time entries to Tempo Cloud with preview, dry-run, and confirmation
-- **Extensible**: Architecture supports plugins/integrations for external time tracking systems
+- **Plugin architecture (in progress)**: Jira/Tempo integration works today; a generic plugin framework is planned (see [ROADMAP.md](ROADMAP.md))
 
 ## Installation
 
@@ -460,12 +460,9 @@ Existing data from KTimeTracker and other iCalendar applications will be preserv
 
 ## Integrations
 
-Worklog is designed with an extensible integration system.
-
 - **Jira/Tempo**: The `worklog jira sync` command sends time entries to Tempo Cloud. Issue keys are auto-detected from task names (e.g., `PROJ-123`) or set explicitly with the `-issue-key` flag.
-- Additional integrations can be added by following the patterns in `internal/tempo/` and `cmd_jira.go`.
 
-See [ROADMAP.md](ROADMAP.md) for details on planned features.
+The long-term goal is a generic plugin framework so that additional integrations (Toggl, Harvest, GitHub, etc.) can be added without modifying core packages. This is a work in progress — see [doc/plugin-architecture.md](doc/plugin-architecture.md) for the design and [ROADMAP.md](ROADMAP.md) for the timeline.
 
 ## Project Structure
 
