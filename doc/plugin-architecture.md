@@ -6,7 +6,7 @@ The Jira/Tempo integration should behave like an **optional plugin** that is:
 
 1. **Optionally enabled** — worklog functions fully without it.
 2. **Isolated from the core application** — the domain model, config system, sidecar, and CLI dispatcher know nothing about Jira or Tempo.
-3. **Extensible by 3rd parties** — a developer can write a new integration (e.g., GitHub, Toggl, Harvest) as a standalone package and register it at compile time with a single import line. Core packages (`task`, `event`, `sidecar`, `config`) are never modified.
+3. **Extensible by 3rd parties** — a developer can write a new integration (e.g., GitHub, Toggl, Harvest) as a standalone Go module and include it in a custom Worklog build by importing the module and registering its plugin in `main.go`. Core packages are never modified.
 
 ## Current State
 
@@ -56,6 +56,16 @@ type Command struct {
     Description string
     Handler     func(args []string) error
 }
+
+// SidecarProvider is an optional sub-interface for plugins that store
+// metadata in the sidecar file. Plugins that don't need sidecar persistence
+// can omit this.
+type SidecarProvider interface {
+    BuildSidecarTaskMeta(task *core.Task) (json.RawMessage, error)
+    RestoreSidecarTaskMeta(task *core.Task, data json.RawMessage) error
+    BuildSidecarEventMeta(event *core.Event) (json.RawMessage, error)
+    RestoreSidecarEventMeta(event *core.Event, data json.RawMessage) error
+}
 ```
 
 Plugins are registered at compile time in `main.go`:
@@ -88,14 +98,14 @@ The Jira plugin defines its own helpers in its own package:
 
 ```go
 // In internal/jira/helpers.go
-func IssueKey(task *worklog.Task) string {
+func IssueKey(task *core.Task) string {
     if v := task.GetProperty("X-WORKLOG-ISSUE-KEY"); v != "" {
         return v
     }
     return extractFromName(task.Name())
 }
 
-func SetIssueID(task *worklog.Task, id string) {
+func SetIssueID(task *core.Task, id string) {
     task.SetProperty("X-WORKLOG-ISSUE-ID", id)
 }
 ```
@@ -141,15 +151,15 @@ func (p *JiraPlugin) BuildSidecarTaskMeta(task *core.Task) json.RawMessage {
 
 ### 4. Generic Config Registry
 
-Replace the hardcoded `Config` struct with a two-level design:
+Keep the **top-level YAML shape** for backward compatibility (existing `jira:` and `tempo:` blocks continue to work), but replace the hardcoded `Config` struct with a generic registry:
 
-1. **Core config** — only `worklog_file` and other truly universal settings.
-2. **Plugin config** — a `map[string]interface{}` (or typed sub-configs) where each plugin owns its namespace.
+1. **Core config** — only `worklog_file` and other truly universal settings remain as typed struct fields.
+2. **Plugin config** — a `map[string]interface{}` that preserves the current YAML layout. Plugins register their keys with the registry, which handles validation, defaults, and sensitive-key masking.
 
 ```go
 type Config struct {
     WorklogFile string                 `yaml:"worklog_file"`
-    Plugins     map[string]interface{} `yaml:"plugins,omitempty"`
+    Plugins     map[string]interface{} `yaml:",inline"` // preserves jira:, tempo:, etc.
 }
 ```
 
@@ -163,7 +173,7 @@ func (p *JiraPlugin) RegisterConfig(r *plugin.ConfigRegistry) {
 }
 ```
 
-`worklog config get jira.base_url` and `worklog config set jira.base_url ...` work generically via the registry, not through a hardcoded switch.
+`worklog config get jira.base_url` and `worklog config set jira.base_url ...` work generically via the registry, not through a hardcoded switch. Existing user configs remain valid with no migration required.
 
 ### 5. CLI Registration
 
@@ -293,8 +303,8 @@ func TogglProjectID(task *core.Task) string {
 A user would install it by adding one import and one registration line to `main.go`:
 
 ```go
-import "github.com/cogentParadigm/worklog/internal/toggl"
+import togglplugin "github.com/example/worklog-toggl-plugin"
 
 // in main():
-registry.Register(toggl.NewPlugin())
+registry.Register(togglplugin.NewPlugin())
 ```
