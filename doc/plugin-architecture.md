@@ -30,7 +30,11 @@ Introduce a `pkg/plugin` package that defines the contract every integration mus
 ```go
 package plugin
 
-import "flag"
+import (
+	"encoding/json"
+
+	"github.com/cogentParadigm/worklog/pkg/core"
+)
 
 type Plugin interface {
     // Unique plugin name (used as namespace in config and sidecar).
@@ -137,13 +141,12 @@ type EventMeta struct {
 A plugin serializes its own metadata subset into its namespace:
 
 ```go
-func (p *JiraPlugin) BuildSidecarTaskMeta(task *core.Task) json.RawMessage {
+func (p *JiraPlugin) BuildSidecarTaskMeta(task *core.Task) (json.RawMessage, error) {
     m := jiraTaskMeta{
         IssueID:  IssueID(task),
         IssueKey: IssueKey(task),
     }
-    b, _ := json.Marshal(m)
-    return b
+    return json.Marshal(m)
 }
 ```
 
@@ -247,7 +250,7 @@ The refactor should happen in this order to keep the application working at ever
 
 1. **Compile-time vs. runtime plugins**
    - *Decision*: Start with **compile-time registration** (plugins import themselves into `main.go`).
-   - *Rationale*: Go's `plugin` package (`.so` files) is platform-specific and brittle. Sidecar executables add IPC complexity. Compile-time registration lets 3rd parties write standalone plugin packages and distribute them as forked binaries that add a single `registry.Register(...)` line to `main.go`. Core packages are never edited.
+    - *Rationale*: Go's `plugin` package (`.so` files) is platform-specific and brittle. Sidecar executables add IPC complexity. Compile-time registration lets 3rd parties write standalone plugin packages and distribute them as forked binaries. A custom build imports the plugin module and calls `registry.Register(...)` in `main.go`. Core packages are never edited.
 
 2. **Should plugins hook into `task create`/`update` for custom flags?**
    - *Option A*: Generic `--property` flag only (simplest, keeps core neutral).
