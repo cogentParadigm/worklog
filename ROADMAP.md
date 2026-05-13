@@ -42,10 +42,7 @@ Manual time entry and reporting before automation.
 
 Extensible architecture for external system integrations.
 
-- [x] Plugin/integration framework architecture
-  - `internal/tempo/` package as a reference HTTP client pattern
-  - Domain helpers (`jira.go`) extracted from core models for clean separation
-- [x] **Jira Integration** (reference implementation)
+- [x] **Jira/Tempo Integration** (functional but not yet plugin-isolated)
   - Map tasks to Jira issues via auto-detection (`PROJ-123` from name) or explicit `X-WORKLOG-ISSUE-KEY` property
   - Send single task's time entries to Tempo Cloud worklogs (`worklog jira sync --task <uuid>`)
   - Batch send multiple tasks' time entries by date range (`worklog jira sync --from ... --to ...`)
@@ -53,8 +50,15 @@ Extensible architecture for external system integrations.
     - Interactive prompt showing summary of what will be sent
     - `--dry-run` flag to preview without actually sending
   - Jira API configuration via `~/.config/worklog/config.yaml` (URL, token with optional `pass:` prefix, account ID)
-- [x] Framework documentation for community integrations
-  - Documented in README.md with `internal/tempo/` as a pattern reference
+- [ ] **True Plugin Architecture**
+  - Define `Plugin` interface with lifecycle hooks (commands, config, metadata)
+  - Generic domain model: remove Jira/Tempo-specific methods from `Task`/`Event`
+  - Generic sidecar extensions: plugin-namespaced metadata
+  - Generic config registry: plugin-registered config keys
+  - Command registration via plugin interface
+  - Isolate Jira-specific CLI flags from core `task` commands
+  - Isolate Jira/Tempo prompts from `init` command
+- [ ] Framework documentation for community integrations
 
 ## Phase 4: Standalone Mode
 
