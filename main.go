@@ -79,7 +79,11 @@ func printConfigUsage() {
 	fmt.Println("  set     Set a config value")
 }
 
+var verbose bool
+
 func configureFlagSet(fs *flag.FlagSet, description, examples string) {
+	fs.BoolVar(&verbose, "v", false, "Verbose output")
+	fs.BoolVar(&verbose, "verbose", false, "Verbose output")
 	fs.SetOutput(os.Stdout)
 	fs.Usage = func() {
 		fmt.Fprintf(fs.Output(), "Usage: worklog %s [flags]\n\n", fs.Name())

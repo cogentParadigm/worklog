@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	ics "github.com/arran4/golang-ical"
@@ -115,6 +116,9 @@ func buildSidecar(tasks []*Task, events []*Event) *Sidecar {
 }
 
 func restoreFromSidecar(tasks []*Task, events []*Event, sc *Sidecar) {
+	restoredTasks := 0
+	restoredEvents := 0
+
 	for _, task := range flattenTasks(tasks) {
 		meta, ok := sc.Tasks[task.uuid]
 		if !ok {
@@ -150,7 +154,10 @@ func restoreFromSidecar(tasks []*Task, events []*Event, sc *Sidecar) {
 		}
 
 		if restored {
-			fmt.Fprintf(os.Stderr, "Restored metadata for task %q from sidecar (another application may have stripped worklog properties)\n", task.name)
+			restoredTasks++
+			if verbose {
+				fmt.Fprintf(os.Stderr, "Restored metadata for task %q from sidecar (another application may have stripped worklog properties)\n", task.name)
+			}
 		}
 	}
 
@@ -171,7 +178,21 @@ func restoreFromSidecar(tasks []*Task, events []*Event, sc *Sidecar) {
 			restored = true
 		}
 		if restored {
-			fmt.Fprintf(os.Stderr, "Restored metadata for event %q from sidecar (another application may have stripped worklog properties)\n", event.summary)
+			restoredEvents++
+			if verbose {
+				fmt.Fprintf(os.Stderr, "Restored metadata for event %q from sidecar (another application may have stripped worklog properties)\n", event.summary)
+			}
 		}
+	}
+
+	if restoredTasks > 0 || restoredEvents > 0 {
+		parts := []string{}
+		if restoredTasks > 0 {
+			parts = append(parts, fmt.Sprintf("%d task(s)", restoredTasks))
+		}
+		if restoredEvents > 0 {
+			parts = append(parts, fmt.Sprintf("%d event(s)", restoredEvents))
+		}
+		fmt.Fprintf(os.Stderr, "Restored metadata for %s from sidecar (another application may have stripped worklog properties)\n", strings.Join(parts, " and "))
 	}
 }

@@ -72,6 +72,7 @@ func TestSidecarRestoresStrippedTaskMetadata(t *testing.T) {
 	}
 
 	// Reload: metadata should be restored from sidecar
+	verbose = true
 	stderr := captureStderr(func() {
 		wl2, err := NewWorklog(icsPath)
 		if err != nil {
@@ -93,6 +94,7 @@ func TestSidecarRestoresStrippedTaskMetadata(t *testing.T) {
 			t.Errorf("expected tempo attr account=engineering, got %v", attrs)
 		}
 	})
+	verbose = false
 
 	if !strings.Contains(stderr, "Restored metadata for task \"Task One\"") {
 		t.Errorf("expected stderr notice about restored metadata, got: %s", stderr)
@@ -141,6 +143,7 @@ func TestSidecarRestoresStrippedEventMetadata(t *testing.T) {
 	}
 
 	// Reload: metadata should be restored
+	verbose = true
 	stderr := captureStderr(func() {
 		wl2, err := NewWorklog(icsPath)
 		if err != nil {
@@ -159,6 +162,7 @@ func TestSidecarRestoresStrippedEventMetadata(t *testing.T) {
 			t.Errorf("expected sync_hash restored, got %q", event.SyncHash())
 		}
 	})
+	verbose = false
 
 	if !strings.Contains(stderr, "Restored metadata for event \"Work session\"") {
 		t.Errorf("expected stderr notice about restored event metadata, got: %s", stderr)
@@ -198,6 +202,59 @@ func TestSidecarDoesNotRestoreWhenPropertiesPresent(t *testing.T) {
 
 	if strings.Contains(stderr, "Restored metadata") {
 		t.Errorf("expected no restore notice when metadata is present, got: %s", stderr)
+	}
+}
+
+func TestSidecarSummaryWhenNotVerbose(t *testing.T) {
+	dir := t.TempDir()
+	icsPath := filepath.Join(dir, "test.ics")
+
+	// Create initial .ics with worklog metadata
+	cal := ics.NewCalendar()
+	todo := ics.VTodo{}
+	todo.SetProperty(ics.ComponentPropertyUniqueId, "task-1")
+	todo.SetProperty(ics.ComponentPropertySummary, "Task One")
+	todo.SetProperty("X-WORKLOG-ISSUE-ID", "1001")
+	cal.Components = append(cal.Components, &todo)
+
+	if err := saveCalendar(icsPath, cal); err != nil {
+		t.Fatal(err)
+	}
+
+	// Load and save to create sidecar
+	wl, err := NewWorklog(icsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := wl.Save(""); err != nil {
+		t.Fatal(err)
+	}
+
+	// Strip metadata
+	cal2 := ics.NewCalendar()
+	todo2 := ics.VTodo{}
+	todo2.SetProperty(ics.ComponentPropertyUniqueId, "task-1")
+	todo2.SetProperty(ics.ComponentPropertySummary, "Task One")
+	cal2.Components = append(cal2.Components, &todo2)
+
+	if err := saveCalendar(icsPath, cal2); err != nil {
+		t.Fatal(err)
+	}
+
+	// Reload with verbose=false (default): should print concise summary only
+	verbose = false
+	stderr := captureStderr(func() {
+		_, err := NewWorklog(icsPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	if !strings.Contains(stderr, "Restored metadata for 1 task(s) from sidecar") {
+		t.Errorf("expected concise summary, got: %s", stderr)
+	}
+	if strings.Contains(stderr, "Task One") {
+		t.Errorf("expected no per-task detail when not verbose, got: %s", stderr)
 	}
 }
 
