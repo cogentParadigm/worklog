@@ -117,9 +117,12 @@ func (worklog *Worklog) removeFromParent(task *Task) {
 }
 
 type TaskUpdate struct {
-	Name        *string
-	Description *string
-	ParentUUID  *string
+	Name           string
+	NameSet        bool
+	Description    string
+	DescriptionSet bool
+	ParentUUID     string
+	ParentUUIDSet  bool
 }
 
 func (worklog *Worklog) UpdateTask(uuid string, update TaskUpdate) error {
@@ -128,21 +131,21 @@ func (worklog *Worklog) UpdateTask(uuid string, update TaskUpdate) error {
 		return fmt.Errorf("task with UUID '%s' not found", shortUUID(uuid, worklog.allTaskUUIDs()))
 	}
 
-	if update.Name != nil {
-		if *update.Name == "" {
+	if update.NameSet {
+		if update.Name == "" {
 			return fmt.Errorf("cannot clear task name")
 		}
 		oldKey := task.IssueKey()
-		task.name = *update.Name
+		task.name = update.Name
 		if task.IssueKey() != oldKey {
 			task.ClearIssueID()
 		}
 	}
-	if update.Description != nil {
-		task.description = *update.Description
+	if update.DescriptionSet {
+		task.description = update.Description
 	}
-	if update.ParentUUID != nil {
-		if *update.ParentUUID == "" {
+	if update.ParentUUIDSet {
+		if update.ParentUUID == "" {
 			// Move to root
 			worklog.removeFromParent(task)
 			worklog.tasks = append(worklog.tasks, task)
@@ -150,14 +153,14 @@ func (worklog *Worklog) UpdateTask(uuid string, update TaskUpdate) error {
 		}
 
 		// Check for self-parenting (immediate cycle)
-		if *update.ParentUUID == uuid {
+		if update.ParentUUID == uuid {
 			return fmt.Errorf("cannot set task as its own parent (cycle detected)")
 		}
 
 		// Find the new parent task
-		newParent := worklog.FindTaskByUUID(*update.ParentUUID)
+		newParent := worklog.FindTaskByUUID(update.ParentUUID)
 		if newParent == nil {
-			return fmt.Errorf("parent task with UUID '%s' not found", shortUUID(*update.ParentUUID, worklog.allTaskUUIDs()))
+			return fmt.Errorf("parent task with UUID '%s' not found", shortUUID(update.ParentUUID, worklog.allTaskUUIDs()))
 		}
 
 		// Check for deeper cycle: newParent must not be a descendant of task

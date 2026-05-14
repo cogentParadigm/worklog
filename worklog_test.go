@@ -10,10 +10,6 @@ import (
 	ics "github.com/arran4/golang-ical"
 )
 
-func strPtr(s string) *string {
-	return &s
-}
-
 // Test helper to create a simple worklog with tasks for testing
 func createTestWorklog() *Worklog {
 	return &Worklog{
@@ -69,8 +65,10 @@ func TestUpdateTaskUpdatesNameAndDescription(t *testing.T) {
 	worklog.tasks = append(worklog.tasks, task)
 
 	err := worklog.UpdateTask(task.uuid, TaskUpdate{
-		Name:        strPtr("New Name"),
-		Description: strPtr("New Description"),
+		Name:           "New Name",
+		NameSet:        true,
+		Description:    "New Description",
+		DescriptionSet: true,
 	})
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
@@ -99,7 +97,8 @@ func TestUpdateTaskMoveToNewParent(t *testing.T) {
 
 	// Move child from parent1 to parent2
 	err := worklog.UpdateTask(child.uuid, TaskUpdate{
-		ParentUUID: strPtr(parent2.uuid),
+		ParentUUID:    parent2.uuid,
+		ParentUUIDSet: true,
 	})
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
@@ -134,7 +133,8 @@ func TestUpdateTaskMoveToRoot(t *testing.T) {
 
 	// Move child to root (empty parentUUID means move to root)
 	err := worklog.UpdateTask(child.uuid, TaskUpdate{
-		ParentUUID: strPtr(""),
+		ParentUUID:    "",
+		ParentUUIDSet: true,
 	})
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
@@ -165,7 +165,8 @@ func TestUpdateTaskSelfParenting(t *testing.T) {
 
 	// Try to set task as its own parent
 	err := worklog.UpdateTask(task.uuid, TaskUpdate{
-		ParentUUID: strPtr(task.uuid),
+		ParentUUID:    task.uuid,
+		ParentUUIDSet: true,
 	})
 	if err == nil {
 		t.Errorf("Expected error when setting task as its own parent")
@@ -198,7 +199,8 @@ func TestUpdateTaskMoveToDescendant(t *testing.T) {
 
 	// Try to move grandparent to be a child of its descendant (child)
 	err := worklog.UpdateTask(grandparent.uuid, TaskUpdate{
-		ParentUUID: strPtr(child.uuid),
+		ParentUUID:    child.uuid,
+		ParentUUIDSet: true,
 	})
 	if err == nil {
 		t.Errorf("Expected error when moving task to its descendant")
@@ -235,7 +237,8 @@ func TestUpdateTaskMoveToChild(t *testing.T) {
 
 	// Try to move parent to be a child of its child (immediate cycle)
 	err := worklog.UpdateTask(parent.uuid, TaskUpdate{
-		ParentUUID: strPtr(child.uuid),
+		ParentUUID:    child.uuid,
+		ParentUUIDSet: true,
 	})
 	if err == nil {
 		t.Errorf("Expected error when moving parent to its child")
@@ -254,7 +257,8 @@ func TestUpdateTaskNonExistentTask(t *testing.T) {
 	worklog := createTestWorklog()
 
 	err := worklog.UpdateTask("non-existent-uuid", TaskUpdate{
-		Name: strPtr("New Name"),
+		Name:    "New Name",
+		NameSet: true,
 	})
 	if err == nil {
 		t.Errorf("Expected error when updating non-existent task")
@@ -272,7 +276,8 @@ func TestUpdateTaskNonExistentParent(t *testing.T) {
 	worklog.tasks = append(worklog.tasks, task)
 
 	err := worklog.UpdateTask(task.uuid, TaskUpdate{
-		ParentUUID: strPtr("non-existent-parent"),
+		ParentUUID:    "non-existent-parent",
+		ParentUUIDSet: true,
 	})
 	if err == nil {
 		t.Errorf("Expected error when setting non-existent parent")
@@ -291,7 +296,8 @@ func TestUpdateTaskClearDescription(t *testing.T) {
 	worklog.tasks = append(worklog.tasks, task)
 
 	err := worklog.UpdateTask(task.uuid, TaskUpdate{
-		Description: strPtr(""),
+		Description:    "",
+		DescriptionSet: true,
 	})
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
@@ -308,7 +314,8 @@ func TestUpdateTaskCannotClearName(t *testing.T) {
 	worklog.tasks = append(worklog.tasks, task)
 
 	err := worklog.UpdateTask(task.uuid, TaskUpdate{
-		Name: strPtr(""),
+		Name:    "",
+		NameSet: true,
 	})
 	if err == nil {
 		t.Fatalf("Expected error when clearing task name")
@@ -351,7 +358,7 @@ func TestUpdateTaskClearsIssueIDWhenKeyChanges(t *testing.T) {
 	worklog.tasks = append(worklog.tasks, task)
 
 	newName := "Work on PROJ-456"
-	err := worklog.UpdateTask(task.uuid, TaskUpdate{Name: &newName})
+	err := worklog.UpdateTask(task.uuid, TaskUpdate{Name: newName, NameSet: true})
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -367,7 +374,7 @@ func TestUpdateTaskKeepsIssueIDWhenKeyUnchanged(t *testing.T) {
 	worklog.tasks = append(worklog.tasks, task)
 
 	newName := "More work on PROJ-123"
-	err := worklog.UpdateTask(task.uuid, TaskUpdate{Name: &newName})
+	err := worklog.UpdateTask(task.uuid, TaskUpdate{Name: newName, NameSet: true})
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -489,7 +496,8 @@ func TestUpdateTaskParentRemainsUnchangedOnError(t *testing.T) {
 
 	// Attempt to move parent to child (cycle) - should fail
 	err := worklog.UpdateTask(parent.uuid, TaskUpdate{
-		ParentUUID: strPtr(child.uuid),
+		ParentUUID:    child.uuid,
+		ParentUUIDSet: true,
 	})
 	if err == nil {
 		t.Errorf("Expected error")
@@ -1106,7 +1114,7 @@ func TestSaveRoundTrip(t *testing.T) {
 
 	// Rename an existing task
 	targetUUID := "ace3355a-b9ef-4bb1-ac87-ed1b73f5810a"
-	err = worklog.UpdateTask(targetUUID, TaskUpdate{Name: strPtr("08/14 - ACCPLAN-90 Updated")})
+	err = worklog.UpdateTask(targetUUID, TaskUpdate{Name: "08/14 - ACCPLAN-90 Updated", NameSet: true})
 	if err != nil {
 		t.Fatalf("Failed to rename task: %v", err)
 	}
@@ -1117,7 +1125,7 @@ func TestSaveRoundTrip(t *testing.T) {
 	// Add a new child task under an existing parent
 	parentUUID := "b5ed3012-e2d5-4295-bf25-9aeecedc134b"
 	newChild := worklog.NewTask("New Child Task")
-	err = worklog.UpdateTask(newChild.uuid, TaskUpdate{ParentUUID: &parentUUID})
+	err = worklog.UpdateTask(newChild.uuid, TaskUpdate{ParentUUID: parentUUID, ParentUUIDSet: true})
 	if err != nil {
 		t.Fatalf("Failed to set parent for new child task: %v", err)
 	}

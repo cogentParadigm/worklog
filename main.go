@@ -318,11 +318,14 @@ func runTaskUpdate(args []string) error {
 	updateCommand.Visit(func(f *flag.Flag) {
 		switch f.Name {
 		case "name":
-			update.Name = updateName
+			update.Name = *updateName
+			update.NameSet = true
 		case "description":
-			update.Description = updateDescription
+			update.Description = *updateDescription
+			update.DescriptionSet = true
 		case "parent":
-			update.ParentUUID = updateParent
+			update.ParentUUID = *updateParent
+			update.ParentUUIDSet = true
 		case "issue-key":
 			issueKeySet = true
 		case "attr":
@@ -331,13 +334,12 @@ func runTaskUpdate(args []string) error {
 	})
 
 	// Resolve parent UUID if provided and non-empty
-	if update.ParentUUID != nil && *update.ParentUUID != "" {
-		parentTask, err := resolveTaskUUID(worklog, *update.ParentUUID)
+	if update.ParentUUIDSet && update.ParentUUID != "" {
+		parentTask, err := resolveTaskUUID(worklog, update.ParentUUID)
 		if err != nil {
 			return err
 		}
-		resolvedParentUUID := parentTask.uuid
-		update.ParentUUID = &resolvedParentUUID
+		update.ParentUUID = parentTask.uuid
 	}
 
 	if err := worklog.UpdateTask(resolvedUUID, update); err != nil {
