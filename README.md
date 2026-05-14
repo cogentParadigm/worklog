@@ -316,12 +316,21 @@ worklog report timesheet -all -hide-empty
 
 ### `jira search`
 
-Search Jira issues by summary or key using the issue picker API. This is useful for discovering issue keys when you know part of the summary but not the exact key.
+Search Jira issues using JQL. By default, keywords are automatically wrapped in a `text ~ "..."` JQL query, which searches summary, description, and comments. Use `--jql` to provide a raw JQL query instead.
+
+**Flags:**
+- `--jql` — Raw JQL query (overrides keyword search).
 
 **Examples:**
 ```bash
+# Keyword search (searches summary, description, and comments)
 worklog jira search "onboarding refactor"
+
+# Search by exact issue key
 worklog jira search PROJ-123
+
+# Raw JQL query
+worklog jira search --jql 'project = PROJ AND status = "In Progress"'
 ```
 
 ### `jira resolve`
