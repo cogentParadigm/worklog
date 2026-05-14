@@ -303,10 +303,10 @@ func runJiraSync(args []string) error {
 			return err
 		}
 		if resolved > 0 {
-			fmt.Printf("Saved %d issue key assignment(s).\n", resolved)
 			if err := worklog.Save(*syncOutput); err != nil {
 				return fmt.Errorf("save worklog: %w", err)
 			}
+			fmt.Printf("Saved %d issue key assignment(s).\n", resolved)
 			entries, err = buildSyncEntries(worklog, syncTaskUUID, fromDay, toDay, roundingSteps, cfg)
 			if err != nil {
 				return err
