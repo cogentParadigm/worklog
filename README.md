@@ -326,7 +326,7 @@ Search Jira issues using JQL. By default, keywords are automatically wrapped in 
 # Keyword search (searches summary, description, and comments)
 worklog jira search "onboarding refactor"
 
-# Search by exact issue key
+# Search by issue key (text search)
 worklog jira search PROJ-123
 
 # Raw JQL query
