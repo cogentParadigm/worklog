@@ -378,7 +378,7 @@ Previews (dry-run output in both `list` and `timesheet` formats) include short t
 - `-task` — Sync only a specific task UUID (optional).
 - `-from` — Start date for sync range (`YYYY-MM-DD`, optional).
 - `-to` — End date for sync range (`YYYY-MM-DD`, optional).
-- `-dry-run` — Preview what would be synced without sending anything.
+- `-dry-run` — Preview what would be synced without sending anything. When combined with `--resolve-skipped`, issue key assignments are still saved to the worklog.
 - `-force` — Sync without interactive confirmation.
 - `-format` — Preview format: `list` (default) or `timesheet`.
 - `-hide-empty` — Hide days with no time entries (`timesheet` format only).

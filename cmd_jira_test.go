@@ -134,6 +134,46 @@ func TestResolveSkippedTasksQuit(t *testing.T) {
 	}
 }
 
+func TestResolveSkippedTasksPartialQuit(t *testing.T) {
+	server := mockJiraServer([]jira.SearchIssueResult{
+		{Key: "PROJ-123", Summary: "First issue"},
+		{Key: "PROJ-456", Summary: "Second issue"},
+	})
+	defer server.Close()
+
+	client := jira.NewClient(server.URL, "user", "token")
+	task1 := makeTestSkippedTask("Task One")
+	task2 := makeTestSkippedTask("Task Two")
+	shortUUIDs := map[string]string{task1.uuid: "a", task2.uuid: "b"}
+	skipped := []skippedTask{
+		{task: task1, duration: 3600},
+		{task: task2, duration: 1800},
+	}
+
+	in := strings.NewReader("y\n\n1\n\nq\n")
+	out := &bytes.Buffer{}
+
+	resolved, err := resolveSkippedTasks(skipped, client, shortUUIDs, in, out)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resolved != 1 {
+		t.Errorf("resolved = %d, want 1", resolved)
+	}
+	if task1.IssueKey() != "PROJ-123" {
+		t.Errorf("task1 issue key = %q, want PROJ-123", task1.IssueKey())
+	}
+	if task2.IssueKey() != "" {
+		t.Errorf("task2 issue key = %q, want empty", task2.IssueKey())
+	}
+}
+
+// The resolveSkippedTests above verify the in-memory mutation contract:
+// resolveSkippedTasks mutates the Task objects in the skipped slice directly,
+// and the caller (runJiraSync) is responsible for persisting those changes.
+// This is why the tests inspect task.IssueKey() after the call and why
+// runJiraSync calls worklog.Save when resolved > 0.
+
 func TestResolveSkippedTasksDecline(t *testing.T) {
 	server := mockJiraServer([]jira.SearchIssueResult{
 		{Key: "PROJ-123", Summary: "Test issue"},
