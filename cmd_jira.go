@@ -132,16 +132,28 @@ func runJiraResolve(args []string) error {
 	return nil
 }
 
+func buildSearchJQL(keywords string) string {
+	escaped := strings.ReplaceAll(keywords, `"`, `\"`)
+	return fmt.Sprintf(`text ~ "%s"`, escaped)
+}
+
 func runJiraSearch(args []string) error {
 	searchCommand := flag.NewFlagSet("jira search", flag.ContinueOnError)
-	configureFlagSet(searchCommand, "Search Jira issues by summary or key using the issue picker API.", "  worklog jira search \"onboarding refactor\"\n  worklog jira search PROJ-123")
+	searchJQL := searchCommand.String("jql", "", "Raw JQL query (overrides keyword search)")
+	configureFlagSet(searchCommand, "Search Jira issues using JQL. Keywords are automatically wrapped in a text ~ query.", "  worklog jira search \"onboarding refactor\"\n  worklog jira search PROJ-123\n  worklog jira search --jql 'project = PROJ AND status = \"In Progress\"'")
 	if err := searchCommand.Parse(args); err != nil {
 		return err
 	}
 
-	query := strings.TrimSpace(strings.Join(searchCommand.Args(), " "))
-	if query == "" {
-		return fmt.Errorf("search query required")
+	var jql string
+	if *searchJQL != "" {
+		jql = *searchJQL
+	} else {
+		query := strings.TrimSpace(strings.Join(searchCommand.Args(), " "))
+		if query == "" {
+			return fmt.Errorf("search query required (provide keywords or use --jql)")
+		}
+		jql = buildSearchJQL(query)
 	}
 
 	cfg, err := LoadConfig()
@@ -161,7 +173,7 @@ func runJiraSearch(args []string) error {
 	}
 
 	client := jira.NewClient(cfg.Jira.BaseURL, cfg.Jira.Username, jiraToken)
-	results, err := client.SearchIssues(query)
+	results, err := client.SearchIssues(jql)
 	if err != nil {
 		return fmt.Errorf("search issues: %w", err)
 	}
@@ -487,7 +499,8 @@ func resolveSkippedTasks(skipped []skippedTask, jiraClient *jira.Client, shortUU
 			query = s.task.name
 		}
 
-		results, err := jiraClient.SearchIssues(query)
+		jql := buildSearchJQL(query)
+		results, err := jiraClient.SearchIssues(jql)
 		if err != nil {
 			return resolved, fmt.Errorf("search for %q: %w", query, err)
 		}

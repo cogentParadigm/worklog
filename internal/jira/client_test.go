@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -202,6 +203,87 @@ func TestGetRemainingEstimateNetworkError(t *testing.T) {
 func TestGetRemainingEstimateMissingBaseURL(t *testing.T) {
 	client := NewClient("", "user", "token")
 	_, err := client.GetRemainingEstimate("PROJ-1")
+	if err == nil {
+		t.Fatal("expected error for missing base URL")
+	}
+}
+
+func TestSearchIssuesSuccess(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" {
+			t.Errorf("expected GET, got %s", r.Method)
+		}
+		if r.URL.Path != "/rest/api/3/search/jql" {
+			t.Errorf("expected path /rest/api/3/search/jql, got %s", r.URL.Path)
+		}
+		q := r.URL.Query()
+		if q.Get("fields") != "summary" {
+			t.Errorf("expected fields=summary, got %s", q.Get("fields"))
+		}
+		if q.Get("maxResults") != "20" {
+			t.Errorf("expected maxResults=20, got %s", q.Get("maxResults"))
+		}
+		if !strings.Contains(q.Get("jql"), `text ~`) {
+			t.Errorf("expected jql to contain text ~, got %s", q.Get("jql"))
+		}
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"issues": []map[string]interface{}{
+				{
+					"key": "PROJ-123",
+					"fields": map[string]interface{}{
+						"summary": "Test issue",
+					},
+				},
+				{
+					"key": "PROJ-456",
+					"fields": map[string]interface{}{
+						"summary": "Another issue",
+					},
+				},
+			},
+		})
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "user", "token")
+	results, err := client.SearchIssues(`text ~ "test"`)
+	if err != nil {
+		t.Fatalf("SearchIssues: %v", err)
+	}
+	if len(results) != 2 {
+		t.Fatalf("expected 2 results, got %d", len(results))
+	}
+	if results[0].Key != "PROJ-123" {
+		t.Errorf("key: got %q, want PROJ-123", results[0].Key)
+	}
+	if results[0].Summary != "Test issue" {
+		t.Errorf("summary: got %q, want Test issue", results[0].Summary)
+	}
+}
+
+func TestSearchIssuesJQLError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"errorMessages": []string{"Field 'foo' does not exist"},
+		})
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "user", "token")
+	_, err := client.SearchIssues(`foo = bar`)
+	if err == nil {
+		t.Fatal("expected error for 400 response")
+	}
+	if !strings.Contains(err.Error(), "Field 'foo' does not exist") {
+		t.Errorf("error message should contain 'Field 'foo' does not exist', got %q", err.Error())
+	}
+}
+
+func TestSearchIssuesMissingBaseURL(t *testing.T) {
+	client := NewClient("", "user", "token")
+	_, err := client.SearchIssues(`text ~ "test"`)
 	if err == nil {
 		t.Fatal("expected error for missing base URL")
 	}

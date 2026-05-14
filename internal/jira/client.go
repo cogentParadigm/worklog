@@ -44,20 +44,17 @@ type SearchIssueResult struct {
 	Summary string
 }
 
-type issuePickerIssue struct {
-	Key         string `json:"key"`
-	Summary     string `json:"summary"`
-	SummaryText string `json:"summaryText"`
+type searchIssueFields struct {
+	Summary string `json:"summary"`
 }
 
-type issuePickerSection struct {
-	ID     string             `json:"id"`
-	Label  string             `json:"label"`
-	Issues []issuePickerIssue `json:"issues"`
+type searchIssue struct {
+	Key    string            `json:"key"`
+	Fields searchIssueFields `json:"fields"`
 }
 
-type issuePickerResponse struct {
-	Sections []issuePickerSection `json:"sections"`
+type searchResponse struct {
+	Issues []searchIssue `json:"issues"`
 }
 
 func (c *Client) authHeader() string {
@@ -97,12 +94,12 @@ func (c *Client) GetIssueID(issueKey string) (string, error) {
 	return body.ID, nil
 }
 
-func (c *Client) SearchIssues(query string) ([]SearchIssueResult, error) {
+func (c *Client) SearchIssues(jql string) ([]SearchIssueResult, error) {
 	if c.baseURL == "" {
 		return nil, fmt.Errorf("jira base URL not configured")
 	}
-	url := fmt.Sprintf("%s/rest/api/3/issue/picker?query=%s", c.baseURL, url.QueryEscape(query))
-	req, err := http.NewRequest("GET", url, nil)
+	u := fmt.Sprintf("%s/rest/api/3/search/jql?jql=%s&fields=summary&maxResults=20", c.baseURL, url.QueryEscape(jql))
+	req, err := http.NewRequest("GET", u, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -123,23 +120,17 @@ func (c *Client) SearchIssues(query string) ([]SearchIssueResult, error) {
 		return nil, fmt.Errorf("jira API %s", resp.Status)
 	}
 
-	var body issuePickerResponse
+	var body searchResponse
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
 		return nil, fmt.Errorf("decode jira response: %w", err)
 	}
 
 	var results []SearchIssueResult
-	for _, section := range body.Sections {
-		for _, issue := range section.Issues {
-			summary := issue.SummaryText
-			if summary == "" {
-				summary = issue.Summary
-			}
-			results = append(results, SearchIssueResult{
-				Key:     issue.Key,
-				Summary: summary,
-			})
-		}
+	for _, issue := range body.Issues {
+		results = append(results, SearchIssueResult{
+			Key:     issue.Key,
+			Summary: issue.Fields.Summary,
+		})
 	}
 	return results, nil
 }
