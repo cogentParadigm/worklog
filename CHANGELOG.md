@@ -1,3 +1,19 @@
+# [0.27.0](https://github.com/cogentParadigm/worklog/compare/v0.26.0...v0.27.0) (2026-05-14)
+
+
+### Bug Fixes
+
+* print saved count after resolving skipped tasks ([edc2cb1](https://github.com/cogentParadigm/worklog/commit/edc2cb1db864faba354b19fa2fbb2631bf9910d5))
+* print saved count only after successful save ([7f62e6e](https://github.com/cogentParadigm/worklog/commit/7f62e6e0d50a4fe18bf93f698bd3a4c894f1e886))
+* switch SearchIssues from Issue Picker to JQL endpoint ([584550f](https://github.com/cogentParadigm/worklog/commit/584550f2548a9604d1f0e615c3b071c89c239804))
+
+
+### Features
+
+* add jira search command and resolve-skipped flag ([1bf4ff1](https://github.com/cogentParadigm/worklog/commit/1bf4ff170f550a12d0de9294af79efc558367d8e))
+* add SearchIssues method to jira client ([266670c](https://github.com/cogentParadigm/worklog/commit/266670c6bfa28e985744f525de5cd9b0c98cdd97))
+* add SetIssueKey and ClearIssueKey helpers ([15866d3](https://github.com/cogentParadigm/worklog/commit/15866d3010c481fa9e6f0283c6a6ff8e8c9834b7))
+
 # [0.26.0](https://github.com/cogentParadigm/worklog/compare/v0.25.1...v0.26.0) (2026-05-13)
 
 
