@@ -298,7 +298,7 @@ func runJiraSync(args []string) error {
 		if jiraClient == nil {
 			return fmt.Errorf("jira client required for --resolve-skipped")
 		}
-		resolved, err := resolveSkippedTasks(skipped, jiraClient, shortTaskUUIDs)
+		resolved, err := resolveSkippedTasks(skipped, jiraClient, shortTaskUUIDs, os.Stdin, os.Stdout)
 		if err != nil {
 			return err
 		}
@@ -472,11 +472,11 @@ func printSkippedTasks(w io.Writer, skipped []skippedTask, shortUUIDs map[string
 	}
 }
 
-func resolveSkippedTasks(skipped []skippedTask, jiraClient *jira.Client, shortUUIDs map[string]string) (int, error) {
-	reader := bufio.NewReader(os.Stdin)
+func resolveSkippedTasks(skipped []skippedTask, jiraClient *jira.Client, shortUUIDs map[string]string, in io.Reader, out io.Writer) (int, error) {
+	reader := bufio.NewReader(in)
 
-	fmt.Println("")
-	fmt.Print("Resolve skipped tasks? [y/N] ")
+	fmt.Fprintln(out, "")
+	fmt.Fprint(out, "Resolve skipped tasks? [y/N] ")
 	response, err := reader.ReadString('\n')
 	if err != nil {
 		return 0, fmt.Errorf("failed to read confirmation: %w", err)
@@ -487,9 +487,9 @@ func resolveSkippedTasks(skipped []skippedTask, jiraClient *jira.Client, shortUU
 
 	resolved := 0
 	for _, s := range skipped {
-		fmt.Println("")
-		fmt.Printf("Task: %q (%s)\n", s.task.name, formatDuration(s.duration))
-		fmt.Printf("Search query [%s]: ", s.task.name)
+		fmt.Fprintln(out, "")
+		fmt.Fprintf(out, "Task: %q (%s)\n", s.task.name, formatDuration(s.duration))
+		fmt.Fprintf(out, "Search query [%s]: ", s.task.name)
 		query, err := reader.ReadString('\n')
 		if err != nil {
 			return resolved, fmt.Errorf("failed to read query: %w", err)
@@ -506,18 +506,18 @@ func resolveSkippedTasks(skipped []skippedTask, jiraClient *jira.Client, shortUU
 		}
 
 		if len(results) == 0 {
-			fmt.Println("No issues found.")
+			fmt.Fprintln(out, "No issues found.")
 			continue
 		}
 
 		for i, r := range results {
-			fmt.Printf("  %d) %s — %s\n", i+1, r.Key, r.Summary)
+			fmt.Fprintf(out, "  %d) %s — %s\n", i+1, r.Key, r.Summary)
 		}
-		fmt.Println("  s) Skip this task")
-		fmt.Println("  q) Quit resolving")
+		fmt.Fprintln(out, "  s) Skip this task")
+		fmt.Fprintln(out, "  q) Quit resolving")
 
 		for {
-			fmt.Print("Select: ")
+			fmt.Fprint(out, "Select: ")
 			sel, err := reader.ReadString('\n')
 			if err != nil {
 				return resolved, fmt.Errorf("failed to read selection: %w", err)
@@ -533,13 +533,13 @@ func resolveSkippedTasks(skipped []skippedTask, jiraClient *jira.Client, shortUU
 
 			idx, err := strconv.Atoi(sel)
 			if err != nil || idx < 1 || idx > len(results) {
-				fmt.Println("Invalid selection.")
+				fmt.Fprintln(out, "Invalid selection.")
 				continue
 			}
 
 			result := results[idx-1]
 			s.task.SetIssueKey(result.Key)
-			fmt.Printf("Issue key %s assigned to task %s.\n", result.Key, shortUUIDs[s.task.uuid])
+			fmt.Fprintf(out, "Issue key %s assigned to task %s.\n", result.Key, shortUUIDs[s.task.uuid])
 			resolved++
 			break
 		}
