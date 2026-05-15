@@ -80,6 +80,14 @@ func getEventProperty(event *ics.VEvent, prop ics.ComponentProperty) string {
 // and nested components for debugging only.
 // ---------------------------------------------------------
 
+// emittedSet tracks which standard iCalendar properties have already been
+// written during a serialization loop so that missing required properties
+// can be emitted afterwards.
+type emittedSet map[string]bool
+
+func (e emittedSet) mark(prop string) { e[prop] = true }
+func (e emittedSet) has(prop string) bool { return e[prop] }
+
 func getProperties(tasks []*ics.VTodo) {
 	for _, task := range tasks {
 		for _, property := range task.Properties {

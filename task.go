@@ -114,39 +114,39 @@ func makeTaskForTodo(todo *ics.VTodo) (Task, string) {
 func makeTodoForTask(task *Task) ics.VTodo {
 	todo := ics.VTodo{}
 
-	emitted := make(map[string]bool)
+	emitted := make(emittedSet)
 
 	for _, prop := range task.properties {
 		switch prop.IANAToken {
 		case string(ics.ComponentPropertyUniqueId):
 			todo.SetProperty(ics.ComponentPropertyUniqueId, task.uuid)
-			emitted["UID"] = true
+			emitted.mark("UID")
 		case string(ics.ComponentPropertySummary):
 			todo.SetProperty(ics.ComponentPropertySummary, task.name)
-			emitted["SUMMARY"] = true
+			emitted.mark("SUMMARY")
 		case string(ics.ComponentPropertyDescription):
 			todo.SetProperty(ics.ComponentPropertyDescription, task.description)
-			emitted["DESCRIPTION"] = true
+			emitted.mark("DESCRIPTION")
 		case "RELATED-TO":
 			if task.parent != nil {
 				todo.SetProperty("RELATED-TO", task.parent.uuid)
-				emitted["RELATED-TO"] = true
+				emitted.mark("RELATED-TO")
 			}
 		default:
 			todo.Properties = append(todo.Properties, prop)
 		}
 	}
 
-	if !emitted["UID"] {
+	if !emitted.has("UID") {
 		todo.SetProperty(ics.ComponentPropertyUniqueId, task.uuid)
 	}
-	if !emitted["SUMMARY"] {
+	if !emitted.has("SUMMARY") {
 		todo.SetProperty(ics.ComponentPropertySummary, task.name)
 	}
-	if !emitted["DESCRIPTION"] && task.description != "" {
+	if !emitted.has("DESCRIPTION") && task.description != "" {
 		todo.SetProperty(ics.ComponentPropertyDescription, task.description)
 	}
-	if !emitted["RELATED-TO"] && task.parent != nil {
+	if !emitted.has("RELATED-TO") && task.parent != nil {
 		todo.SetProperty("RELATED-TO", task.parent.uuid)
 	}
 

@@ -151,25 +151,25 @@ func makeEventForVEvent(ve *ics.VEvent) Event {
 func makeVEventForEvent(event *Event) ics.VEvent {
 	ve := ics.VEvent{}
 
-	emitted := make(map[string]bool)
+	emitted := make(emittedSet)
 
 	for _, prop := range event.properties {
 		switch prop.IANAToken {
 		case string(ics.ComponentPropertyUniqueId):
 			ve.SetProperty(ics.ComponentPropertyUniqueId, event.uuid)
-			emitted["UID"] = true
+			emitted.mark("UID")
 		case string(ics.ComponentPropertySummary):
 			ve.SetProperty(ics.ComponentPropertySummary, event.summary)
-			emitted["SUMMARY"] = true
+			emitted.mark("SUMMARY")
 		case string(ics.ComponentProperty(ics.PropertyComment)):
 			if event.comment != "" {
 				ve.SetProperty(ics.ComponentProperty(ics.PropertyComment), event.comment)
-				emitted["COMMENT"] = true
+				emitted.mark("COMMENT")
 			}
 		case "RELATED-TO":
 			if event.relatedTo != "" {
 				ve.SetProperty("RELATED-TO", event.relatedTo)
-				emitted["RELATED-TO"] = true
+				emitted.mark("RELATED-TO")
 			}
 		case string(ics.ComponentPropertyDtStart):
 			if event.dtstartProp != nil {
@@ -177,40 +177,40 @@ func makeVEventForEvent(event *Event) ics.VEvent {
 			} else if !event.dtstart.IsZero() {
 				ve.SetStartAt(event.dtstart)
 			}
-			emitted["DTSTART"] = true
+			emitted.mark("DTSTART")
 		case string(ics.ComponentPropertyDtEnd):
 			if event.dtendProp != nil {
 				ve.Properties = append(ve.Properties, *event.dtendProp)
 			} else if !event.dtend.IsZero() {
 				ve.SetEndAt(event.dtend)
 			}
-			emitted["DTEND"] = true
+			emitted.mark("DTEND")
 
 		default:
 			ve.Properties = append(ve.Properties, prop)
 		}
 	}
 
-	if !emitted["UID"] {
+	if !emitted.has("UID") {
 		ve.SetProperty(ics.ComponentPropertyUniqueId, event.uuid)
 	}
-	if !emitted["SUMMARY"] {
+	if !emitted.has("SUMMARY") {
 		ve.SetProperty(ics.ComponentPropertySummary, event.summary)
 	}
-	if !emitted["COMMENT"] && event.comment != "" {
+	if !emitted.has("COMMENT") && event.comment != "" {
 		ve.SetProperty(ics.ComponentProperty(ics.PropertyComment), event.comment)
 	}
-	if !emitted["RELATED-TO"] && event.relatedTo != "" {
+	if !emitted.has("RELATED-TO") && event.relatedTo != "" {
 		ve.SetProperty("RELATED-TO", event.relatedTo)
 	}
-	if !emitted["DTSTART"] && !event.dtstart.IsZero() {
+	if !emitted.has("DTSTART") && !event.dtstart.IsZero() {
 		if event.dtstartProp != nil {
 			ve.Properties = append(ve.Properties, *event.dtstartProp)
 		} else {
 			ve.SetStartAt(event.dtstart)
 		}
 	}
-	if !emitted["DTEND"] && !event.dtend.IsZero() {
+	if !emitted.has("DTEND") && !event.dtend.IsZero() {
 		if event.dtendProp != nil {
 			ve.Properties = append(ve.Properties, *event.dtendProp)
 		} else {
