@@ -76,8 +76,7 @@ func getEventProperty(event *ics.VEvent, prop ics.ComponentProperty) string {
 }
 
 // ---------------------------------------------------------
-// helper functions to print data from the ics.Calendar
-// and nested components for debugging only.
+// serialization helpers
 // ---------------------------------------------------------
 
 // emittedSet tracks which standard iCalendar properties have already been
@@ -87,6 +86,11 @@ type emittedSet map[string]bool
 
 func (e emittedSet) mark(prop string) { e[prop] = true }
 func (e emittedSet) has(prop string) bool { return e[prop] }
+
+// ---------------------------------------------------------
+// helper functions to print data from the ics.Calendar
+// and nested components for debugging only.
+// ---------------------------------------------------------
 
 func getProperties(tasks []*ics.VTodo) {
 	for _, task := range tasks {
