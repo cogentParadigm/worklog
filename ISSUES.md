@@ -4,8 +4,6 @@ This document tracks known issues identified during code review.
 
 
 
-- **`emitted` map pattern in `makeTodoForTask` / `makeVEventForEvent` is slightly opaque**: `task.go:38-74` and `event.go:101-171` use an `emitted` map to track which standard properties have been handled. A small named type or comment would improve readability.
-
 - **`humanizeLabel` does complex rune-by-rune scanning**: `cmd_jira.go:798-813` is ~15 lines to insert spaces before capitals. Could be simplified with a regex or string replacement.
 
 - **Core domain model polluted with Jira/Tempo-specific methods**: `jira.go` adds `IssueKey()`, `IssueID()`, `TempoAttributes()`, `SyncedAt()`, `SyncHash()`, etc. as methods on `Task` and `Event`. A 3rd-party plugin cannot add metadata to core types without modifying the main package. These should become generic property accessors or standalone helper functions in the plugin's own package.
