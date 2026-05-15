@@ -1,3 +1,10 @@
+## [0.27.1](https://github.com/cogentParadigm/worklog/compare/v0.27.0...v0.27.1) (2026-05-15)
+
+
+### Bug Fixes
+
+* move emittedSet out of debug-only section ([0f944bc](https://github.com/cogentParadigm/worklog/commit/0f944bc3e1008155f4e397fd6790c2aca3de6f26))
+
 # [0.27.0](https://github.com/cogentParadigm/worklog/compare/v0.26.0...v0.27.0) (2026-05-14)
 
 
