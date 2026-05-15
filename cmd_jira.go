@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -754,21 +755,11 @@ func truncate(s string, maxLen int) string {
 	return s[:maxLen-3] + "..."
 }
 
+var humanizeRe = regexp.MustCompile(`([a-z])([A-Z])`)
+
 func humanizeLabel(s string) string {
 	s = strings.Trim(s, "_")
-	var result []rune
-	for i, r := range s {
-		if i > 0 && r >= 'A' && r <= 'Z' {
-			if len(result) > 0 {
-				prev := result[len(result)-1]
-				if prev >= 'a' && prev <= 'z' {
-					result = append(result, ' ')
-				}
-			}
-		}
-		result = append(result, r)
-	}
-	return string(result)
+	return humanizeRe.ReplaceAllString(s, "${1} ${2}")
 }
 
 // buildHumanizedAttrKeys converts raw Tempo attribute keys to human-readable
