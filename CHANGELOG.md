@@ -1,3 +1,10 @@
+# [0.28.0](https://github.com/cogentParadigm/worklog/compare/v0.27.1...v0.28.0) (2026-06-11)
+
+
+### Features
+
+* interactive task editing ([6f77d49](https://github.com/cogentParadigm/worklog/commit/6f77d49b64d469dc1a7e995e9c8c257f39d54cf9))
+
 ## [0.27.1](https://github.com/cogentParadigm/worklog/compare/v0.27.0...v0.27.1) (2026-05-15)
 
 
