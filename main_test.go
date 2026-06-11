@@ -661,3 +661,77 @@ func TestInitSetsJiraConfig(t *testing.T) {
 		t.Errorf("config missing jira.token")
 	}
 }
+
+func TestRunJiraSyncInteractiveSkippedTaskInDateRange(t *testing.T) {
+	tmpDir := t.TempDir()
+	tmpFile := filepath.Join(tmpDir, "test.ics")
+
+	icsContent := `BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Worklog//Worklog//EN
+BEGIN:VTODO
+UID:test-uuid-123
+SUMMARY:Test Task
+END:VTODO
+BEGIN:VEVENT
+UID:event-uuid-456
+DTSTART:20240115T090000
+DTEND:20240115T100000
+SUMMARY:Test Task
+RELATED-TO:test-uuid-123
+END:VEVENT
+END:VCALENDAR
+`
+	err := os.WriteFile(tmpFile, []byte(icsContent), 0644)
+	if err != nil {
+		t.Fatalf("failed to create test file: %v", err)
+	}
+
+	// Set up temp config with dummy credentials
+	origXDG := os.Getenv("XDG_CONFIG_HOME")
+	os.Setenv("XDG_CONFIG_HOME", tmpDir)
+	defer os.Setenv("XDG_CONFIG_HOME", origXDG)
+
+	configDir := filepath.Join(tmpDir, "worklog")
+	os.MkdirAll(configDir, 0755)
+	configFile := filepath.Join(configDir, "config.yaml")
+	os.WriteFile(configFile, []byte(`tempo:
+  token: dummy
+  account_id: dummy
+jira:
+  token: dummy
+`), 0644)
+
+	// Input: y (edit task), 3 (issue key), PROJ-123 (new key), 6 (done)
+	oldStdin := os.Stdin
+	oldStdout := os.Stdout
+	stdinR, stdinW, _ := os.Pipe()
+	stdoutR, stdoutW, _ := os.Pipe()
+	os.Stdin = stdinR
+	os.Stdout = stdoutW
+	stdinW.WriteString("y\n3\nPROJ-123\n6\n")
+	stdinW.Close()
+
+	err = run([]string{"jira", "sync", "-file", tmpFile, "-from", "2024-01-15", "-to", "2024-01-15", "-i", "-dry-run"})
+
+	stdoutW.Close()
+	os.Stdin = oldStdin
+	os.Stdout = oldStdout
+	io.ReadAll(stdoutR)
+
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	wl, err := NewWorklog(tmpFile)
+	if err != nil {
+		t.Fatalf("failed to reload worklog: %v", err)
+	}
+	task := wl.FindTaskByUUID("test-uuid-123")
+	if task == nil {
+		t.Fatal("expected to find task")
+	}
+	if task.IssueKey() != "PROJ-123" {
+		t.Errorf("expected issue key 'PROJ-123', got '%s'", task.IssueKey())
+	}
+}

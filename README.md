@@ -170,12 +170,14 @@ Updates an existing task. Only the fields you provide are changed.
 **Flags:**
 - `-file` — Path to the `.ics` file (overrides `WORKLOG_FILE` environment variable).
 - `-output` — Output path for the updated `.ics` file. If omitted, writes back to the input file.
-- `-uuid` — The UUID of the task to update (required).
+- `-uuid` — The UUID of the task to update (required unless `-i`).
 - `-name` — New name for the task.
 - `-description` — New description for the task.
 - `-parent` — New parent UUID for the task. Set to an empty string to move the task to the root level.
 - `-issue-key` — Explicit Jira issue key for this task. Set to an empty string to clear it.
 - `-attr` — Tempo work attributes as comma-separated `key=value` pairs (e.g., `_WorkType_=Development`). Set to an empty string to clear all attributes.
+- `-i` — Interactive mode: select a task from a numbered list and edit its name, description, issue key, Tempo attributes, and parent.
+- `-search` — Filter tasks by case-insensitive search (interactive mode only).
 
 Cycle detection prevents a task from being set as its own parent or moved under one of its descendants.
 
@@ -187,6 +189,10 @@ worklog task update -uuid <uuid> -parent ""
 worklog task update -uuid <uuid> -issue-key PROJ-456
 worklog task update -uuid <uuid> -attr _WorkType_=Development
 worklog task update -uuid <uuid> -attr _WorkType_=Development,_Billable_=Yes
+
+# Interactive mode
+worklog task update -i
+worklog task update -i -search onboarding
 ```
 
 ### `task delete`
@@ -378,13 +384,13 @@ Previews (dry-run output in both `list` and `timesheet` formats) include short t
 - `-task` — Sync only a specific task UUID (optional).
 - `-from` — Start date for sync range (`YYYY-MM-DD`, optional).
 - `-to` — End date for sync range (`YYYY-MM-DD`, optional).
-- `-dry-run` — Preview what would be synced without sending anything. When combined with `--resolve-skipped`, issue key assignments are still saved to the worklog.
+- `-dry-run` — Preview what would be synced without sending anything.
 - `-force` — Sync without interactive confirmation.
 - `-format` — Preview format: `list` (default) or `timesheet`.
 - `-hide-empty` — Hide days with no time entries (`timesheet` format only).
 - `-decimal` — Display hours in decimal format (`timesheet` format only).
 - `-rounding` — Rounding steps: `floor/ceil/round:to[,...]` (overrides config; default is `round:1m`).
-- `-resolve-skipped` — Interactively search and assign issue keys to skipped tasks before syncing.
+- `-i` — Interactive mode: before syncing, review each task that will be sent and edit its name, description, issue key, Tempo attributes, and parent. Edits are saved as you go.
 
 **Examples:**
 ```bash
@@ -406,8 +412,8 @@ worklog jira sync --dry-run --format timesheet
 # Preview in timesheet format, hiding empty days and showing decimal hours
 worklog jira sync --dry-run --format timesheet --hide-empty --decimal
 
-# Interactively resolve skipped tasks before syncing
-worklog jira sync --resolve-skipped
+# Interactive mode: review and edit tasks before syncing
+worklog jira sync -i
 
 # Sync with custom rounding (floor to minutes, then ceil to 5 minutes)
 worklog jira sync --rounding "floor:1m,ceil:5m"

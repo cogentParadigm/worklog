@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"flag"
 	"fmt"
 	"os"
@@ -286,13 +287,15 @@ func runTaskUpdate(args []string) error {
 	updateCommand := flag.NewFlagSet("task update", flag.ContinueOnError)
 	updateFile := updateCommand.String("file", "", "Path to .ics file (overrides WORKLOG_FILE)")
 	updateOutput := updateCommand.String("output", "", "Output path for the updated .ics file (defaults to input file)")
-	updateUUID := updateCommand.String("uuid", "", "The UUID (or short unique prefix) of the task to update (required)")
+	updateUUID := updateCommand.String("uuid", "", "The UUID (or short unique prefix) of the task to update (required unless -i)")
 	updateName := updateCommand.String("name", "", "New name for the task")
 	updateDescription := updateCommand.String("description", "", "New description for the task")
 	updateParent := updateCommand.String("parent", "", "New parent UUID (or short unique prefix) for the task")
 	updateIssueKey := updateCommand.String("issue-key", "", "Explicit Jira issue key for this task")
 	updateAttrs := updateCommand.String("attr", "", "Tempo work attributes as comma-separated key=value pairs (e.g. _WorkType_=Development)")
-	configureFlagSet(updateCommand, "Update an existing task. Only provided fields are changed.", "  worklog task update -uuid <short-uuid> -name \"New Name\"\n  worklog task update -uuid <short-uuid> -parent \"\"\n  worklog task update -uuid <short-uuid> -description \"Details\"\n  worklog task update -uuid <short-uuid> -attr _WorkType_=Development")
+	updateInteractive := updateCommand.Bool("i", false, "Interactive mode: select and edit tasks")
+	updateSearch := updateCommand.String("search", "", "Filter tasks by case-insensitive search (interactive mode only)")
+	configureFlagSet(updateCommand, "Update an existing task. Only provided fields are changed.", "  worklog task update -uuid <short-uuid> -name \"New Name\"\n  worklog task update -uuid <short-uuid> -parent \"\"\n  worklog task update -uuid <short-uuid> -description \"Details\"\n  worklog task update -uuid <short-uuid> -attr _WorkType_=Development\n  worklog task update -i\n  worklog task update -i -search onboarding")
 	if err := updateCommand.Parse(args); err != nil {
 		return err
 	}
@@ -302,8 +305,63 @@ func runTaskUpdate(args []string) error {
 		return err
 	}
 
+	if *updateInteractive {
+		// Interactive mode
+		allTasks := flattenTasks(worklog.tasks)
+		var candidates []*Task
+		for _, task := range allTasks {
+			if *updateSearch != "" {
+				if !matchesSearch(task.name, *updateSearch) && !matchesSearch(task.description, *updateSearch) {
+					continue
+				}
+			}
+			candidates = append(candidates, task)
+		}
+
+		if len(candidates) == 0 {
+			fmt.Println("No tasks match the search criteria.")
+			return nil
+		}
+
+		allTaskUUIDs := worklog.allTaskUUIDs()
+		shortTaskUUIDs := shortUUIDs(allTaskUUIDs)
+		reader := bufio.NewReader(os.Stdin)
+
+		for {
+			task, err := interactiveSelectTask(candidates, shortTaskUUIDs, reader, os.Stdout)
+			if err != nil {
+				return err
+			}
+			if task == nil {
+				break
+			}
+
+			changed, err := interactiveEditTask(task, worklog, nil, nil, nil, shortTaskUUIDs, reader, os.Stdout)
+			if err != nil {
+				return err
+			}
+			if changed {
+				if err := worklog.Save(*updateOutput); err != nil {
+					return fmt.Errorf("save worklog: %w", err)
+				}
+				fmt.Printf("Saved changes to task %s.\n", shortTaskUUIDs[task.uuid])
+			}
+
+			fmt.Fprint(os.Stdout, "Edit another task? [y/n] ")
+			response, err := readLineTrim(reader)
+			if err != nil {
+				return fmt.Errorf("failed to read response: %w", err)
+			}
+			if strings.ToLower(response) != "y" {
+				break
+			}
+		}
+		return nil
+	}
+
+	// Non-interactive mode
 	if *updateUUID == "" {
-		return fmt.Errorf("-uuid flag is required for update command")
+		return fmt.Errorf("-uuid flag is required for update command (use -i for interactive mode)")
 	}
 
 	resolvedTask, err := resolveTaskUUID(worklog, *updateUUID)

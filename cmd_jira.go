@@ -10,7 +10,6 @@ import (
 	"os"
 	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -209,8 +208,8 @@ func runJiraSync(args []string) error {
 	syncHideEmpty := syncCommand.Bool("hide-empty", false, "Hide days with no time entries (timesheet format only)")
 	syncDecimal := syncCommand.Bool("decimal", false, "Display hours in decimal format (timesheet format only)")
 	syncRounding := syncCommand.String("rounding", "", "Rounding steps: floor/ceil/round:to[,...] (default from config, or round:1m)")
-	syncResolveSkipped := syncCommand.Bool("resolve-skipped", false, "Interactively search and assign issue keys to skipped tasks")
-	configureFlagSet(syncCommand, "Sync time entries to Tempo Cloud. Entries are merged by task and date before sending.", "  worklog jira sync --dry-run\n  worklog jira sync --task <short-uuid>\n  worklog jira sync --from 2026-05-01 --to 2026-05-07\n  worklog jira sync --dry-run --format timesheet --hide-empty\n  worklog jira sync --resolve-skipped")
+	syncInteractive := syncCommand.Bool("i", false, "Interactive mode: edit task name, description, issue key, and Tempo attributes before syncing")
+	configureFlagSet(syncCommand, "Sync time entries to Tempo Cloud. Entries are merged by task and date before sending.", "  worklog jira sync --dry-run\n  worklog jira sync --task <short-uuid>\n  worklog jira sync --from 2026-05-01 --to 2026-05-07\n  worklog jira sync --dry-run --format timesheet --hide-empty\n  worklog jira sync -i")
 	if err := syncCommand.Parse(args); err != nil {
 		return err
 	}
@@ -295,25 +294,86 @@ func runJiraSync(args []string) error {
 	allTaskUUIDs := worklog.allTaskUUIDs()
 	shortTaskUUIDs := shortUUIDs(allTaskUUIDs)
 
-	if *syncResolveSkipped && len(skipped) > 0 {
-		if jiraClient == nil {
-			return fmt.Errorf("jira client required for --resolve-skipped")
+	if *syncInteractive {
+		reader := bufio.NewReader(os.Stdin)
+
+		// Collect unique tasks and their total durations from entries and skipped
+		uniqueTasks := make(map[string]*Task)
+		taskDurations := make(map[string]int)
+		for _, e := range entries {
+			uniqueTasks[e.task.uuid] = e.task
+			taskDurations[e.task.uuid] += e.duration
 		}
-		resolved, err := resolveSkippedTasks(skipped, jiraClient, shortTaskUUIDs, os.Stdin, os.Stdout)
-		if err != nil {
-			return err
+		for _, s := range skipped {
+			uniqueTasks[s.task.uuid] = s.task
+			taskDurations[s.task.uuid] += s.duration
 		}
-		if resolved > 0 {
-			if err := worklog.Save(*syncOutput); err != nil {
-				return fmt.Errorf("save worklog: %w", err)
+		var tasks []*Task
+		for _, task := range uniqueTasks {
+			tasks = append(tasks, task)
+		}
+		sort.Slice(tasks, func(i, j int) bool {
+			return tasks[i].name < tasks[j].name
+		})
+
+		for _, task := range tasks {
+			fmt.Fprintf(os.Stdout, "\nTask: %q (%s) [%s]\n", task.name, formatDuration(taskDurations[task.uuid]), shortTaskUUIDs[task.uuid])
+			issueKey := task.IssueKey()
+			if issueKey == "" {
+				issueKey = "(empty)"
 			}
-			fmt.Printf("Saved %d issue key assignment(s).\n", resolved)
-			entries, err = buildSyncEntries(worklog, syncTaskUUID, fromDay, toDay, roundingSteps, cfg)
+			fmt.Fprintf(os.Stdout, "  Issue key: %s\n", issueKey)
+			desc := task.description
+			if desc == "" {
+				desc = "(empty)"
+			}
+			fmt.Fprintf(os.Stdout, "  Description: %s\n", desc)
+			attrs := task.TempoAttributes()
+			if len(attrs) == 0 {
+				fmt.Fprintln(os.Stdout, "  Tempo attributes: (none)")
+			} else {
+				var parts []string
+				var keys []string
+				for k := range attrs {
+					keys = append(keys, k)
+				}
+				sort.Strings(keys)
+				for _, k := range keys {
+					parts = append(parts, fmt.Sprintf("%s=%s", k, attrs[k]))
+				}
+				fmt.Fprintf(os.Stdout, "  Tempo attributes: %s\n", strings.Join(parts, ", "))
+			}
+
+			fmt.Fprint(os.Stdout, "Edit this task? [y/n/q] ")
+			response, err := readLineTrim(reader)
+			if err != nil {
+				return fmt.Errorf("failed to read response: %w", err)
+			}
+			if strings.ToLower(response) == "q" {
+				break
+			}
+			if strings.ToLower(response) != "y" {
+				continue
+			}
+
+			changed, err := interactiveEditTask(task, worklog, jiraClient, client, cfg, shortTaskUUIDs, reader, os.Stdout)
 			if err != nil {
 				return err
 			}
-			skipped = findSkippedTasks(worklog, syncTaskUUID, fromDay, toDay)
+			if changed {
+				if err := worklog.Save(*syncOutput); err != nil {
+					return fmt.Errorf("save worklog: %w", err)
+				}
+				fmt.Printf("Saved changes to task %s.\n", shortTaskUUIDs[task.uuid])
+			}
 		}
+
+		// Rebuild entries after interactive edits
+		entries, err = buildSyncEntries(worklog, syncTaskUUID, fromDay, toDay, roundingSteps, cfg)
+		if err != nil {
+			return err
+		}
+		skipped = findSkippedTasks(worklog, syncTaskUUID, fromDay, toDay)
 	}
 
 	if len(entries) == 0 {
@@ -472,81 +532,6 @@ func printSkippedTasks(w io.Writer, skipped []skippedTask, shortUUIDs map[string
 	for _, s := range skipped {
 		fmt.Fprintf(w, "  %-*s %-*s %s\n", maxShortLen, shortUUIDs[s.task.uuid], nameWidth, s.task.name, formatDuration(s.duration))
 	}
-}
-
-func resolveSkippedTasks(skipped []skippedTask, jiraClient *jira.Client, shortUUIDs map[string]string, in io.Reader, out io.Writer) (int, error) {
-	reader := bufio.NewReader(in)
-
-	fmt.Fprintln(out, "")
-	fmt.Fprint(out, "Resolve skipped tasks? [y/N] ")
-	response, err := reader.ReadString('\n')
-	if err != nil {
-		return 0, fmt.Errorf("failed to read confirmation: %w", err)
-	}
-	if strings.ToLower(strings.TrimSpace(response)) != "y" {
-		return 0, nil
-	}
-
-	resolved := 0
-	for _, s := range skipped {
-		fmt.Fprintln(out, "")
-		fmt.Fprintf(out, "Task: %q (%s)\n", s.task.name, formatDuration(s.duration))
-		fmt.Fprintf(out, "Search query [%s]: ", s.task.name)
-		query, err := reader.ReadString('\n')
-		if err != nil {
-			return resolved, fmt.Errorf("failed to read query: %w", err)
-		}
-		query = strings.TrimSpace(query)
-		if query == "" {
-			query = s.task.name
-		}
-
-		jql := buildSearchJQL(query)
-		results, err := jiraClient.SearchIssues(jql)
-		if err != nil {
-			return resolved, fmt.Errorf("search for %q: %w", query, err)
-		}
-
-		if len(results) == 0 {
-			fmt.Fprintln(out, "No issues found.")
-			continue
-		}
-
-		for i, r := range results {
-			fmt.Fprintf(out, "  %d) %s — %s\n", i+1, r.Key, r.Summary)
-		}
-		fmt.Fprintln(out, "  s) Skip this task")
-		fmt.Fprintln(out, "  q) Quit resolving")
-
-		for {
-			fmt.Fprint(out, "Select: ")
-			sel, err := reader.ReadString('\n')
-			if err != nil {
-				return resolved, fmt.Errorf("failed to read selection: %w", err)
-			}
-			sel = strings.TrimSpace(sel)
-
-			if strings.ToLower(sel) == "q" {
-				return resolved, nil
-			}
-			if strings.ToLower(sel) == "s" {
-				break
-			}
-
-			idx, err := strconv.Atoi(sel)
-			if err != nil || idx < 1 || idx > len(results) {
-				fmt.Fprintln(out, "Invalid selection.")
-				continue
-			}
-
-			result := results[idx-1]
-			s.task.SetIssueKey(result.Key)
-			fmt.Fprintf(out, "Issue key %s assigned to task %s.\n", result.Key, shortUUIDs[s.task.uuid])
-			resolved++
-			break
-		}
-	}
-	return resolved, nil
 }
 
 func computeSyncHash(entry syncEntry, cfg *Config) string {
