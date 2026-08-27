@@ -1049,10 +1049,10 @@ func TestParseRoundingSteps(t *testing.T) {
 
 func TestApplyRounding(t *testing.T) {
 	tests := []struct {
-		name   string
-		steps  []RoundingStep
-		input  int
-		want   int
+		name    string
+		steps   []RoundingStep
+		input   int
+		want    int
 		wantErr bool
 	}{
 		{"no rounding", nil, 359, 359, false},
@@ -1174,5 +1174,39 @@ func TestBuildSyncEntriesSkipsInProgressEvents(t *testing.T) {
 	}
 	if entries[0].events[0].uuid != finished.uuid {
 		t.Error("expected finished event, got in-progress event")
+	}
+}
+
+func TestBuildSyncEntriesIncludesNegativeDurationAdjustment(t *testing.T) {
+	task := NewTask("NRI-1213 server issue")
+	task.uuid = "task-uuid-adjustment"
+	start := time.Date(2026, 7, 23, 11, 31, 44, 0, time.UTC)
+
+	first := NewEvent(task.uuid, start, start.Add(581*time.Second), 581, task.name, "")
+	secondStart := time.Date(2026, 7, 23, 11, 44, 31, 0, time.UTC)
+	second := NewEvent(task.uuid, secondStart, secondStart.Add(6179*time.Second), 6179, task.name, "")
+
+	adjustmentVEvent := ics.VEvent{}
+	adjustmentVEvent.SetProperty(ics.ComponentPropertyUniqueId, "adjustment-event")
+	adjustmentVEvent.SetProperty(ics.ComponentPropertySummary, task.name)
+	adjustmentVEvent.SetProperty("RELATED-TO", task.uuid)
+	adjustmentVEvent.SetStartAt(secondStart)
+	adjustmentVEvent.SetProperty("X-KDE-ktimetracker-duration", "-1200")
+	adjustment := makeEventForVEvent(&adjustmentVEvent)
+
+	wl := &Worklog{tasks: []*Task{task}, events: []*Event{first, second, &adjustment}}
+	steps := []RoundingStep{{Step: "floor", To: "1m"}, {Step: "ceil", To: "5m"}}
+	entries, err := buildSyncEntries(wl, "", time.Time{}, time.Time{}, steps, nil)
+	if err != nil {
+		t.Fatalf("buildSyncEntries: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(entries))
+	}
+	if entries[0].duration != 5700 {
+		t.Errorf("duration = %d, want 5700", entries[0].duration)
+	}
+	if len(entries[0].events) != 3 {
+		t.Errorf("source events = %d, want 3", len(entries[0].events))
 	}
 }

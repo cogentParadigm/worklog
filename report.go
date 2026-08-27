@@ -143,7 +143,7 @@ func generateTimesheet(worklog *Worklog, from, to time.Time) *Timesheet {
 	taskHasTime := make(map[string]bool)
 
 	for _, event := range worklog.events {
-		if !eventInDateRange(event, days[0], days[len(days)-1]) {
+		if !event.isComplete() || !eventInDateRange(event, days[0], days[len(days)-1]) {
 			continue
 		}
 		eventDay := time.Date(event.dtstart.Year(), event.dtstart.Month(), event.dtstart.Day(), 0, 0, 0, 0, event.dtstart.Location())

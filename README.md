@@ -485,6 +485,8 @@ Worklog uses the standard iCalendar format:
 - **VTODO components** represent tasks with SUMMARY, DESCRIPTION, UID, and RELATED-TO (for parent relationships)
 - **VEVENT components** represent time entries with DTSTART/DTEND, RELATED-TO (linking to tasks), and duration
 
+Event duration is read from `DTSTART`/`DTEND` when both are present, then from the standard `DURATION` property. Worklog also supports KTimeTracker's signed `X-KDE-ktimetracker-duration` adjustment records when `DTEND` is absent. Events with only `DTSTART` and no explicit duration are treated as active timers and excluded from timesheet reports and Jira sync.
+
 Existing data from KTimeTracker and other iCalendar applications will be preserved and readable by this tool.
 
 ## Integrations

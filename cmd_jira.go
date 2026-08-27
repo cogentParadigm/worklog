@@ -489,7 +489,7 @@ func findSkippedTasks(worklog *Worklog, taskUUID string, fromDay, toDay time.Tim
 	taskMap := make(map[string]*Task)
 
 	for _, event := range worklog.GetEvents() {
-		if !eventInDateRange(event, fromDay, toDay) {
+		if !event.isComplete() || !eventInDateRange(event, fromDay, toDay) {
 			continue
 		}
 		task := worklog.FindTaskByUUID(event.relatedTo)
@@ -562,7 +562,7 @@ func buildSyncEntries(worklog *Worklog, taskUUID string, fromDay, toDay time.Tim
 		if !eventInDateRange(event, fromDay, toDay) {
 			continue
 		}
-		if event.dtend.IsZero() {
+		if !event.isComplete() {
 			continue // skip in-progress events (active timer)
 		}
 

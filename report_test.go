@@ -12,7 +12,7 @@ func TestCurrentWeekRange(t *testing.T) {
 	wed := time.Date(2023, 8, 16, 12, 0, 0, 0, time.UTC)
 	from, to := currentWeekRange(wed)
 
-	expectedFrom := time.Date(2023, 8, 14, 0, 0, 0, 0, time.UTC) // Monday
+	expectedFrom := time.Date(2023, 8, 14, 0, 0, 0, 0, time.UTC)  // Monday
 	expectedTo := time.Date(2023, 8, 20, 23, 59, 59, 0, time.UTC) // Sunday
 
 	if !from.Equal(expectedFrom) {
@@ -28,7 +28,7 @@ func TestCurrentWeekRangeSunday(t *testing.T) {
 	sun := time.Date(2023, 8, 20, 12, 0, 0, 0, time.UTC)
 	from, to := currentWeekRange(sun)
 
-	expectedFrom := time.Date(2023, 8, 14, 0, 0, 0, 0, time.UTC) // Monday
+	expectedFrom := time.Date(2023, 8, 14, 0, 0, 0, 0, time.UTC)  // Monday
 	expectedTo := time.Date(2023, 8, 20, 23, 59, 59, 0, time.UTC) // Sunday
 
 	if !from.Equal(expectedFrom) {
@@ -234,6 +234,31 @@ func TestGenerateTimesheetMultipleEventsSameDay(t *testing.T) {
 	}
 	if ts.totals[0] != 5400 {
 		t.Errorf("Expected daily total 5400, got %d", ts.totals[0])
+	}
+}
+
+func TestGenerateTimesheetIncludesAdjustmentsAndExcludesActiveEvents(t *testing.T) {
+	worklog := createTestWorklog()
+	task := NewTask("Task")
+	worklog.tasks = append(worklog.tasks, task)
+	day := time.Date(2026, 7, 23, 0, 0, 0, 0, time.UTC)
+
+	worklog.events = append(worklog.events,
+		&Event{uuid: "first", relatedTo: task.uuid, dtstart: day.Add(9 * time.Hour), duration: 581},
+		&Event{uuid: "second", relatedTo: task.uuid, dtstart: day.Add(10 * time.Hour), duration: 6179},
+		&Event{uuid: "adjustment", relatedTo: task.uuid, dtstart: day.Add(10 * time.Hour), duration: -1200},
+		&Event{uuid: "active", relatedTo: task.uuid, dtstart: day.Add(11 * time.Hour), duration: 7200, active: true},
+	)
+
+	ts := generateTimesheet(worklog, day, day)
+	if len(ts.rows) != 1 {
+		t.Fatalf("rows = %d, want 1", len(ts.rows))
+	}
+	if ts.rows[0].durations[0] != 5560 {
+		t.Errorf("duration = %d, want 5560", ts.rows[0].durations[0])
+	}
+	if ts.totals[0] != 5560 {
+		t.Errorf("total = %d, want 5560", ts.totals[0])
 	}
 }
 

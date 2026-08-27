@@ -319,10 +319,93 @@ func TestInProgressEventDuration(t *testing.T) {
 	if !event.dtend.IsZero() {
 		t.Error("Expected dtend to be zero for in-progress event")
 	}
+	if event.isComplete() {
+		t.Error("Expected DTSTART-only event to be active")
+	}
 
 	// Allow a few seconds of tolerance for test execution time
 	want := int(time.Now().Sub(startTime).Seconds())
 	if event.duration < want-2 || event.duration > want+2 {
 		t.Errorf("Expected duration around %d, got %d", want, event.duration)
 	}
+}
+
+func TestParseICalDuration(t *testing.T) {
+	tests := []struct {
+		value string
+		want  int
+		ok    bool
+	}{
+		{"PT30M", 1800, true},
+		{"PT1H20M", 4800, true},
+		{"P1DT2H", 93600, true},
+		{"P2W", 1209600, true},
+		{"-PT20M", -1200, true},
+		{"PT0S", 0, true},
+		{"", 0, false},
+		{"PT", 0, false},
+		{"30m", 0, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.value, func(t *testing.T) {
+			got, ok := parseICalDuration(tt.value)
+			if got != tt.want || ok != tt.ok {
+				t.Errorf("parseICalDuration(%q) = (%d, %v), want (%d, %v)", tt.value, got, ok, tt.want, tt.ok)
+			}
+		})
+	}
+}
+
+func TestEventDurationPrecedenceAndExplicitDurations(t *testing.T) {
+	start := time.Date(2026, 7, 23, 9, 0, 0, 0, time.UTC)
+	tests := []struct {
+		name     string
+		dtend    *time.Time
+		duration string
+		kde      string
+		want     int
+		complete bool
+	}{
+		{name: "dtend takes precedence", dtend: ptrTime(start.Add(time.Hour)), duration: "PT30M", kde: "600", want: 3600, complete: true},
+		{name: "standard duration", duration: "PT30M", want: 1800, complete: true},
+		{name: "negative KDE adjustment", kde: "-1200", want: -1200, complete: true},
+		{name: "invalid explicit duration is active", duration: "invalid", want: 0, complete: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ve := ics.VEvent{}
+			ve.SetStartAt(start)
+			if tt.dtend != nil {
+				ve.SetEndAt(*tt.dtend)
+			}
+			if tt.duration != "" {
+				ve.SetProperty(ics.ComponentProperty(ics.PropertyDuration), tt.duration)
+			}
+			if tt.kde != "" {
+				ve.SetProperty("X-KDE-ktimetracker-duration", tt.kde)
+			}
+
+			event := makeEventForVEvent(&ve)
+			if event.isComplete() != tt.complete {
+				t.Errorf("isComplete() = %v, want %v", event.isComplete(), tt.complete)
+			}
+			if tt.complete && event.duration != tt.want {
+				t.Errorf("duration = %d, want %d", event.duration, tt.want)
+			}
+
+			out := makeVEventForEvent(&event)
+			if tt.duration != "" && getEventProperty(&out, ics.ComponentProperty(ics.PropertyDuration)) != tt.duration {
+				t.Error("DURATION was not preserved")
+			}
+			if tt.kde != "" && getEventProperty(&out, "X-KDE-ktimetracker-duration") != tt.kde {
+				t.Error("X-KDE-ktimetracker-duration was not preserved")
+			}
+		})
+	}
+}
+
+func ptrTime(value time.Time) *time.Time {
+	return &value
 }
