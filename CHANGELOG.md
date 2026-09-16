@@ -1,3 +1,10 @@
+## [0.28.1](https://github.com/cogentParadigm/worklog/compare/v0.28.0...v0.28.1) (2026-09-16)
+
+
+### Bug Fixes
+
+* support KTimeTracker duration adjustments ([e5e1552](https://github.com/cogentParadigm/worklog/commit/e5e15528f12f13c1bb6155ed8a6f0b39fbb393e5))
+
 # [0.28.0](https://github.com/cogentParadigm/worklog/compare/v0.27.1...v0.28.0) (2026-06-11)
 
 
